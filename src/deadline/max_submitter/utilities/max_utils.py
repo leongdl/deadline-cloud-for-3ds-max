@@ -314,3 +314,122 @@ def get_state_set_names() -> list:
     for i in range(-1, master_state.Children.count - 2):
         state_sets.append([master_state.Children.Item[i].Name, i + 1])
     return state_sets
+
+
+def get_render_elements() -> list:
+    """
+    Gets all render elements present in the max scene with their properties.
+
+    :returns: a list of dictionaries containing render element information
+              Each dictionary contains: name, type, enabled, output_filename, has_output_path
+    :return_type: list[dict]
+    """
+    render_elements = []
+    
+    try:
+        # Get render element manager
+        re_manager = rt.maxOps.GetCurRenderElementMgr()
+        if not re_manager:
+            _logger.warning("No render element manager found")
+            return render_elements
+            
+        # Iterate through all render elements
+        for i in range(re_manager.NumRenderElements()):
+            element = re_manager.GetRenderElement(i)
+            if not element:
+                continue
+                
+            # Extract render element information
+            element_info = {
+                "name": str(element.elementName) if hasattr(element, 'elementName') else f"Element_{i}",
+                "type": str(element.className) if hasattr(element, 'className') else "Unknown",
+                "enabled": bool(element.enabled) if hasattr(element, 'enabled') else True,
+                "output_filename": "",
+                "has_output_path": False
+            }
+            
+            # Get output filename if available
+            try:
+                output_filename = re_manager.GetRenderElementFilename(i)
+                if output_filename:
+                    element_info["output_filename"] = str(output_filename).replace("\\", "/")
+                    element_info["has_output_path"] = True
+            except Exception as e:
+                _logger.debug(f"Could not get output filename for render element {i}: {e}")
+                
+            render_elements.append(element_info)
+            
+    except Exception as e:
+        _logger.error(f"Error getting render elements: {e}")
+        
+    return render_elements
+
+
+def validate_render_element_paths(render_elements: list) -> list:
+    """
+    Validates render element output paths and returns warnings for problematic paths.
+
+    :param render_elements: list of render element dictionaries from get_render_elements()
+    :type render_elements: list[dict]
+    :returns: list of warning messages for render elements with path issues
+    :return_type: list[str]
+    """
+    warnings = []
+    
+    for element in render_elements:
+        element_name = element.get("name", "Unknown")
+        output_filename = element.get("output_filename", "")
+        has_output_path = element.get("has_output_path", False)
+        enabled = element.get("enabled", True)
+        
+        # Skip disabled render elements
+        if not enabled:
+            continue
+            
+        # Check for missing output paths
+        if not has_output_path or not output_filename:
+            warnings.append(f"Render element '{element_name}' has no output path specified")
+            continue
+            
+        # Check if output directory is accessible
+        try:
+            output_path = Path(output_filename)
+            parent_dir = output_path.parent
+            
+            if not parent_dir.exists():
+                warnings.append(f"Render element '{element_name}' output directory does not exist: {parent_dir}")
+            elif not os.access(parent_dir, os.W_OK):
+                warnings.append(f"Render element '{element_name}' output directory is not writable: {parent_dir}")
+                
+        except (OSError, ValueError) as e:
+            warnings.append(f"Render element '{element_name}' has invalid output path: {output_filename} ({e})")
+            
+    return warnings
+
+
+def get_render_elements_output_directories() -> set:
+    """
+    Gets all unique output directories from render elements in the scene.
+
+    :returns: set of directory paths where render elements will be output
+    :return_type: set[str]
+    """
+    output_dirs = set()
+    
+    try:
+        render_elements = get_render_elements()
+        for element in render_elements:
+            output_filename = element.get("output_filename", "")
+            if output_filename and element.get("enabled", True):
+                try:
+                    output_path = Path(output_filename)
+                    parent_dir = str(output_path.parent).replace("\\", "/")
+                    if parent_dir and parent_dir != ".":
+                        output_dirs.add(parent_dir)
+                except (OSError, ValueError):
+                    continue
+                    
+    except Exception as e:
+        _logger.error(f"Error getting render element output directories: {e}")
+        
+    return output_dirs

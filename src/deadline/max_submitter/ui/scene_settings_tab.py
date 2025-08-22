@@ -29,10 +29,13 @@ from qtpy.QtWidgets import (  # type: ignore
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QSizePolicy,
     QSpacerItem,
+    QVBoxLayout,
     QWidget,
 )
 from deadline.max_submitter.utilities import max_utils
@@ -232,13 +235,17 @@ class SceneSettingsWidget(QWidget):
         self._build_scene_tweaks_ui()
         lyt.addWidget(self.scene_tweaks_grp_box, 9, 0, 3, 5)
 
+        # Render elements group box
+        self._build_render_elements_ui()
+        lyt.addWidget(self.render_elements_grp_box, 12, 0, 4, 5)
+
         if self.developer_options:
             self.include_adaptor_wheels = QCheckBox(
                 "Developer Option: Include Adaptor Wheels", self
             )
-            lyt.addWidget(self.include_adaptor_wheels, 12, 0)
+            lyt.addWidget(self.include_adaptor_wheels, 16, 0)
 
-        lyt.addItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding), 13, 0)
+        lyt.addItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding), 17, 0)
 
         self._fill_cameras_box(0)
 
@@ -281,6 +288,73 @@ class SceneSettingsWidget(QWidget):
         for mat in SCENE_TWEAKS_MATS:
             self.custom_mat_box.addItem(mat, mat)
         scene_tweaks_lyt.addWidget(self.custom_mat_box, 3, 1)
+
+    def _build_render_elements_ui(self):
+        """
+        Create a QGroupBox for the render elements settings
+        """
+        # Create groupbox
+        self.render_elements_grp_box = QGroupBox()
+        self.render_elements_grp_box.setTitle("Render Elements")
+        render_elements_lyt = QGridLayout(self)
+        self.render_elements_grp_box.setLayout(render_elements_lyt)
+
+        # Output Render Elements checkbox
+        self.elements_chck = QCheckBox("Output Render Elements", self)
+        self.elements_chck.setToolTip("Enable or disable render elements output")
+        render_elements_lyt.addWidget(self.elements_chck, 0, 0)
+        self.elements_chck.stateChanged.connect(self._on_elements_enabled_changed)
+
+        # Ignore All Render Elements checkbox
+        self.ignore_render_elements_chck = QCheckBox("Ignore All Render Elements", self)
+        self.ignore_render_elements_chck.setToolTip("Ignore all render elements in the scene")
+        render_elements_lyt.addWidget(self.ignore_render_elements_chck, 0, 1)
+        self.ignore_render_elements_chck.stateChanged.connect(self._on_ignore_all_changed)
+
+        # Ignore Render Elements by Name section
+        ignore_by_name_label = QLabel("Ignore Render Elements by Name:")
+        render_elements_lyt.addWidget(ignore_by_name_label, 1, 0, 1, 2)
+
+        # List widget for ignored render element names
+        self.ignore_elements_list = QListWidget(self)
+        self.ignore_elements_list.setMaximumHeight(100)
+        render_elements_lyt.addWidget(self.ignore_elements_list, 2, 0, 1, 2)
+
+        # Buttons for managing ignored elements list
+        ignore_buttons_layout = QHBoxLayout()
+        self.add_ignore_btn = QPushButton("Add Element", self)
+        self.add_ignore_btn.clicked.connect(self._add_ignore_element)
+        self.remove_ignore_btn = QPushButton("Remove Selected", self)
+        self.remove_ignore_btn.clicked.connect(self._remove_ignore_element)
+        ignore_buttons_layout.addWidget(self.add_ignore_btn)
+        ignore_buttons_layout.addWidget(self.remove_ignore_btn)
+        ignore_buttons_layout.addStretch()
+        
+        ignore_buttons_widget = QWidget()
+        ignore_buttons_widget.setLayout(ignore_buttons_layout)
+        render_elements_lyt.addWidget(ignore_buttons_widget, 3, 0, 1, 2)
+
+        # Detected render elements display
+        detected_label = QLabel("Detected Render Elements:")
+        render_elements_lyt.addWidget(detected_label, 4, 0, 1, 2)
+
+        self.detected_elements_list = QListWidget(self)
+        self.detected_elements_list.setMaximumHeight(120)
+        render_elements_lyt.addWidget(self.detected_elements_list, 5, 0, 1, 2)
+
+        # Refresh button for detected elements
+        self.refresh_elements_btn = QPushButton("Refresh Detected Elements", self)
+        self.refresh_elements_btn.clicked.connect(self._refresh_detected_elements)
+        render_elements_lyt.addWidget(self.refresh_elements_btn, 6, 0, 1, 2)
+
+        # Validation feedback label
+        self.render_elements_feedback_label = QLabel("")
+        self.render_elements_feedback_label.setStyleSheet("color: red;")
+        self.render_elements_feedback_label.setWordWrap(True)
+        render_elements_lyt.addWidget(self.render_elements_feedback_label, 7, 0, 1, 2)
+
+        # Initialize detected elements
+        self._refresh_detected_elements()
 
     def _update_state_set(self, _):
         """
@@ -488,6 +562,19 @@ class SceneSettingsWidget(QWidget):
         if self.developer_options:
             (self.include_adaptor_wheels.setChecked(settings.include_adaptor_wheels))
 
+        # Configure render elements settings
+        self.elements_chck.setChecked(settings.elements)
+        self.ignore_render_elements_chck.setChecked(settings.ignore_render_elements)
+        
+        # Populate ignore elements list
+        self.ignore_elements_list.clear()
+        for element_name in settings.ignore_render_elements_by_name:
+            self.ignore_elements_list.addItem(element_name)
+            
+        # Update control states
+        self._on_elements_enabled_changed(Qt.Checked if settings.elements else Qt.Unchecked)
+        self._on_ignore_all_changed(Qt.Checked if settings.ignore_render_elements else Qt.Unchecked)
+
     def update_settings(self, settings):
         """
         Update a scene settings object with the latest values.
@@ -521,6 +608,28 @@ class SceneSettingsWidget(QWidget):
         else:
             settings.include_adaptor_wheels = False
 
+        # Update render elements settings
+        settings.elements = self.elements_chck.isChecked()
+        settings.ignore_render_elements = self.ignore_render_elements_chck.isChecked()
+        
+        # Update ignore elements by name list
+        ignore_names = []
+        for i in range(self.ignore_elements_list.count()):
+            ignore_names.append(self.ignore_elements_list.item(i).text())
+        settings.ignore_render_elements_by_name = ignore_names
+        
+        # Update render element output filenames from detected elements
+        try:
+            render_elements = max_utils.get_render_elements()
+            output_filenames = []
+            for element in render_elements:
+                if element.get("enabled", True) and element.get("output_filename"):
+                    output_filenames.append(element["output_filename"])
+            settings.render_element_output_filenames = output_filenames
+        except Exception as e:
+            _logger.error(f"Error updating render element output filenames: {e}")
+            settings.render_element_output_filenames = []
+
     def activate_frame_override_changed(self, state):
         """
         Set the activated/deactivated status of the Frame override text box
@@ -545,3 +654,131 @@ class SceneSettingsWidget(QWidget):
         # If the selected renderer isn't in the list set it to the 'Renderer not supported' option
         else:
             self.renderers_box.setCurrentIndex(0)
+
+    def _on_elements_enabled_changed(self, state):
+        """
+        Handle changes to the elements enabled checkbox
+        """
+        enabled = Qt.CheckState(state) == Qt.Checked
+        # Enable/disable related controls
+        self.ignore_render_elements_chck.setEnabled(enabled)
+        self.ignore_elements_list.setEnabled(enabled)
+        self.add_ignore_btn.setEnabled(enabled)
+        self.remove_ignore_btn.setEnabled(enabled)
+        self.detected_elements_list.setEnabled(enabled)
+        self.refresh_elements_btn.setEnabled(enabled)
+
+    def _on_ignore_all_changed(self, state):
+        """
+        Handle changes to the ignore all render elements checkbox
+        """
+        ignore_all = Qt.CheckState(state) == Qt.Checked
+        # Disable individual ignore controls when ignoring all
+        self.ignore_elements_list.setEnabled(not ignore_all and self.elements_chck.isChecked())
+        self.add_ignore_btn.setEnabled(not ignore_all and self.elements_chck.isChecked())
+        self.remove_ignore_btn.setEnabled(not ignore_all and self.elements_chck.isChecked())
+
+    def _add_ignore_element(self):
+        """
+        Add a render element name to the ignore list
+        """
+        # Get currently selected item from detected elements
+        current_item = self.detected_elements_list.currentItem()
+        if current_item:
+            element_name = current_item.text().split(" - ")[0]  # Extract name before " - "
+            
+            # Check if already in ignore list
+            for i in range(self.ignore_elements_list.count()):
+                if self.ignore_elements_list.item(i).text() == element_name:
+                    return  # Already in list
+                    
+            # Add to ignore list
+            self.ignore_elements_list.addItem(element_name)
+            self._validate_render_elements()
+
+    def _remove_ignore_element(self):
+        """
+        Remove selected render element name from the ignore list
+        """
+        current_row = self.ignore_elements_list.currentRow()
+        if current_row >= 0:
+            self.ignore_elements_list.takeItem(current_row)
+            self._validate_render_elements()
+
+    def _refresh_detected_elements(self):
+        """
+        Refresh the list of detected render elements from the scene
+        """
+        self.detected_elements_list.clear()
+        
+        try:
+            render_elements = max_utils.get_render_elements()
+            
+            if not render_elements:
+                item = QListWidgetItem("No render elements detected in scene")
+                item.setToolTip("No render elements found in the current 3ds Max scene")
+                self.detected_elements_list.addItem(item)
+                return
+                
+            for element in render_elements:
+                name = element.get("name", "Unknown")
+                element_type = element.get("type", "Unknown")
+                enabled = element.get("enabled", True)
+                has_output = element.get("has_output_path", False)
+                output_filename = element.get("output_filename", "")
+                
+                # Create display text
+                status_parts = []
+                if not enabled:
+                    status_parts.append("DISABLED")
+                if not has_output:
+                    status_parts.append("NO OUTPUT PATH")
+                    
+                status_text = f" ({', '.join(status_parts)})" if status_parts else ""
+                display_text = f"{name} - {element_type}{status_text}"
+                
+                item = QListWidgetItem(display_text)
+                tooltip = f"Name: {name}\nType: {element_type}\nEnabled: {enabled}\nOutput: {output_filename or 'Not set'}"
+                item.setToolTip(tooltip)
+                
+                self.detected_elements_list.addItem(item)
+                
+        except Exception as e:
+            _logger.error(f"Error refreshing render elements: {e}")
+            item = QListWidgetItem(f"Error detecting render elements: {e}")
+            self.detected_elements_list.addItem(item)
+            
+        self._validate_render_elements()
+
+    def _validate_render_elements(self):
+        """
+        Validate render elements settings and show feedback
+        """
+        feedback_messages = []
+        
+        try:
+            # Check for path validation warnings
+            render_elements = max_utils.get_render_elements()
+            path_warnings = max_utils.validate_render_element_paths(render_elements)
+            feedback_messages.extend(path_warnings)
+            
+            # Check for invalid ignore names
+            ignore_names = []
+            for i in range(self.ignore_elements_list.count()):
+                ignore_names.append(self.ignore_elements_list.item(i).text())
+                
+            if ignore_names:
+                scene_element_names = [elem.get("name", "") for elem in render_elements]
+                invalid_names = [name for name in ignore_names if name not in scene_element_names]
+                
+                for invalid_name in invalid_names:
+                    feedback_messages.append(f"Ignored element '{invalid_name}' not found in scene")
+                    
+        except Exception as e:
+            feedback_messages.append(f"Error validating render elements: {e}")
+            
+        # Display feedback
+        if feedback_messages:
+            self.render_elements_feedback_label.setText("\n".join(feedback_messages))
+        else:
+            self.render_elements_feedback_label.setText("")

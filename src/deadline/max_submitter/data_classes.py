@@ -78,6 +78,12 @@ class RenderSubmitterUISettings:
     all_cameras: list[str] = field(default_factory=list)
     all_stereo_cameras: list[str] = field(default_factory=list)
 
+    # Render Elements
+    elements: bool = field(default=True, metadata={"sticky": True})
+    ignore_render_elements: bool = field(default=False, metadata={"sticky": True})
+    ignore_render_elements_by_name: list[str] = field(default_factory=list, metadata={"sticky": True})
+    render_element_output_filenames: list[str] = field(default_factory=list)
+
     # Developer options
     include_adaptor_wheels: bool = field(default=False, metadata={"sticky": True})
 
@@ -126,3 +132,69 @@ class RenderSubmitterUISettings:
                 if field.metadata.get("sticky")
             }
             json.dump(obj, fh, indent=1)
+
+    def validate_render_element_names(self) -> list[str]:
+        """
+        Validate render element names to ensure they exist in the scene.
+        
+        :returns: list of invalid render element names
+        :return_type: list[str]
+        """
+        invalid_names = []
+        if not self.ignore_render_elements_by_name:
+            return invalid_names
+            
+        try:
+            # Get render element manager
+            re_manager = rt.maxOps.GetCurRenderElementMgr()
+            if not re_manager:
+                return self.ignore_render_elements_by_name  # All names are invalid if no manager
+                
+            # Get all render element names in the scene
+            scene_element_names = []
+            for i in range(re_manager.NumRenderElements()):
+                element = re_manager.GetRenderElement(i)
+                if element:
+                    scene_element_names.append(str(element.elementName))
+            
+            # Check which names in ignore list don't exist in scene
+            for name in self.ignore_render_elements_by_name:
+                if name not in scene_element_names:
+                    invalid_names.append(name)
+                    
+        except Exception:
+            # If we can't access render elements, consider all names invalid
+            invalid_names = self.ignore_render_elements_by_name.copy()
+            
+        return invalid_names
+
+    def validate_render_element_paths(self) -> list[str]:
+        """
+        Validate render element output paths to ensure they are accessible.
+        
+        :returns: list of invalid or inaccessible paths
+        :return_type: list[str]
+        """
+        invalid_paths = []
+        if not self.render_element_output_filenames:
+            return invalid_paths
+            
+        for path in self.render_element_output_filenames:
+            if not path:  # Empty path
+                continue
+                
+            try:
+                path_obj = Path(path)
+                # Check if parent directory exists or can be created
+                parent_dir = path_obj.parent
+                if not parent_dir.exists():
+                    try:
+                        parent_dir.mkdir(parents=True, exist_ok=True)
+                    except (OSError, PermissionError):
+                        invalid_paths.append(path)
+                elif not parent_dir.is_dir():
+                    invalid_paths.append(path)
+            except (OSError, ValueError):
+                invalid_paths.append(path)
+                
+        return invalid_paths
