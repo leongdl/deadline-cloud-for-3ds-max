@@ -107,6 +107,74 @@ def _create_param_definitions(
             }
         )
 
+    # Add render elements parameters if render elements are present in the scene
+    render_elements = max_utils.get_render_elements()
+    if render_elements:
+        # RenderElements parameter - whether to output render elements
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "RenderElements",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Output Render Elements",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Enable or disable render elements output.",
+                "default": "true",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # IgnoreRenderElements parameter - whether to ignore all render elements
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "IgnoreRenderElements",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Ignore All Render Elements",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Ignore all render elements in the scene.",
+                "default": "false",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # IgnoreRenderElementsByName parameter - list of render element names to ignore
+        if any(elem.get("name") for elem in render_elements):
+            element_names = [elem.get("name", "") for elem in render_elements if elem.get("name")]
+            job_template["parameterDefinitions"].append(
+                {
+                    "name": "IgnoreRenderElementsByName",
+                    "type": "STRING",
+                    "userInterface": {
+                        "control": "MULTISELECT_DROPDOWN_LIST",
+                        "label": "Ignore Render Elements by Name",
+                        "groupLabel": "Render Elements",
+                    },
+                    "description": "List of render element names to ignore during rendering.",
+                    "default": "",
+                    "allowedValues": element_names,
+                }
+            )
+
+        # RenderElementOutputFilenames parameter - output filenames for each render element
+        if any(elem.get("output_filename") for elem in render_elements):
+            job_template["parameterDefinitions"].append(
+                {
+                    "name": "RenderElementOutputFilenames",
+                    "type": "STRING",
+                    "userInterface": {
+                        "control": "HIDDEN",
+                        "groupLabel": "Render Elements",
+                    },
+                    "description": "Output filenames for each render element (managed automatically).",
+                    "default": "",
+                }
+            )
+
     return job_template
 
 
@@ -275,6 +343,9 @@ def get_parameters_values(
     :param state_sets: a list of StateSetData for the submitted state sets
     :param queue_parameters: the settings from the shared job settings tab
     """
+    # Validate render elements parameter consistency
+    _validate_render_elements_parameters(settings)
+    
     parameter_values = _get_job_parameters(settings, state_sets)
     queue_parameters = _get_queue_parameters_for_bundle(
         settings, parameter_values, queue_parameters
@@ -358,6 +429,51 @@ def _get_job_parameters(
     ):
         parameter_values.append({"name": "Camera", "value": settings.camera_selection})
 
+    # Add render elements parameters if render elements are present in the scene
+    render_elements = max_utils.get_render_elements()
+    if render_elements:
+        # RenderElements parameter
+        parameter_values.append({
+            "name": "RenderElements",
+            "value": "true" if settings.elements else "false"
+        })
+
+        # IgnoreRenderElements parameter
+        parameter_values.append({
+            "name": "IgnoreRenderElements", 
+            "value": "true" if settings.ignore_render_elements else "false"
+        })
+
+        # IgnoreRenderElementsByName parameter
+        if settings.ignore_render_elements_by_name:
+            # Convert list to comma-separated string for OpenJD
+            ignore_names_str = ",".join(settings.ignore_render_elements_by_name)
+            parameter_values.append({
+                "name": "IgnoreRenderElementsByName",
+                "value": ignore_names_str
+            })
+        elif any(elem.get("name") for elem in render_elements):
+            # Add empty parameter if render elements exist but none are ignored
+            parameter_values.append({
+                "name": "IgnoreRenderElementsByName",
+                "value": ""
+            })
+
+        # RenderElementOutputFilenames parameter
+        if settings.render_element_output_filenames:
+            # Convert list to comma-separated string for OpenJD
+            output_filenames_str = ",".join(settings.render_element_output_filenames)
+            parameter_values.append({
+                "name": "RenderElementOutputFilenames",
+                "value": output_filenames_str
+            })
+        elif any(elem.get("output_filename") for elem in render_elements):
+            # Add empty parameter if render elements exist but no output filenames
+            parameter_values.append({
+                "name": "RenderElementOutputFilenames",
+                "value": ""
+            })
+
     return parameter_values
 
 
@@ -401,6 +517,58 @@ def _get_queue_parameters_for_bundle(
             )
 
     return queue_parameters
+
+
+def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) -> None:
+    """
+    Validates render elements parameter consistency to ensure settings are coherent.
+
+    :param settings: a RenderSubmitterUISettings object containing the latest UI settings
+    :raises DeadlineOperationError: if render elements parameters are inconsistent
+    """
+    # If render elements are disabled, ignore other settings
+    if not settings.elements:
+        return
+        
+    # If ignoring all render elements, ignore by name list should be empty or irrelevant
+    if settings.ignore_render_elements and settings.ignore_render_elements_by_name:
+        # This is not an error, but log a warning that ignore by name will be ignored
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.warning(
+            "Both 'ignore all render elements' and 'ignore by name' are set. "
+            "The 'ignore by name' list will be ignored since all render elements are being ignored."
+        )
+    
+    # Validate that ignored render element names exist in the scene
+    if settings.ignore_render_elements_by_name:
+        try:
+            invalid_names = settings.validate_render_element_names()
+            if invalid_names:
+                raise DeadlineOperationError(
+                    f"The following render element names to ignore do not exist in the scene: "
+                    f"{', '.join(invalid_names)}"
+                )
+        except Exception as e:
+            # If validation fails, log warning but don't fail submission
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.warning(f"Could not validate render element names: {e}")
+    
+    # Validate render element output paths
+    if settings.render_element_output_filenames:
+        try:
+            invalid_paths = settings.validate_render_element_paths()
+            if invalid_paths:
+                raise DeadlineOperationError(
+                    f"The following render element output paths are invalid or inaccessible: "
+                    f"{', '.join(invalid_paths)}"
+                )
+        except Exception as e:
+            # If validation fails, log warning but don't fail submission
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.warning(f"Could not validate render element paths: {e}")
 
 
 def _check_multiples(state_sets: list[StateSetData], type_: str) -> bool:
