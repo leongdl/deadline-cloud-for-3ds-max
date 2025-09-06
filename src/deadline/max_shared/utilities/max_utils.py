@@ -261,7 +261,7 @@ def validate_render_element_configuration(render_elements: list, settings: dict)
 def configure_render_element_paths(render_elements: list, settings: dict) -> list:
     """
     Configures render element paths based on settings.
-    
+
     This function updates render element paths and filenames according to
     Deadline 10's path management system, including name/type inclusion options.
 
@@ -273,52 +273,50 @@ def configure_render_element_paths(render_elements: list, settings: dict) -> lis
     :return_type: list[str]
     """
     warnings = []
-    
+
     if not render_elements or not settings.get("render_elements_update_paths", True):
         return warnings
-    
+
     try:
         re_manager = rt.maxOps.GetCurRenderElementMgr()
         if not re_manager:
             warnings.append("No render element manager found")
             return warnings
-        
+
         for element in render_elements:
             element_index = element.get("index", -1)
             element_name = element.get("name", "")
             element_type = element.get("type", "")
-            
+
             if element_index < 0:
                 continue
-            
+
             # Build new path based on settings
             base_path = element.get("output_filename", "")
             if not base_path:
                 continue
-            
+
             # Apply path modifications based on settings
-            new_path = _build_render_element_path(
-                base_path, element_name, element_type, settings
-            )
-            
+            new_path = _build_render_element_path(base_path, element_name, element_type, settings)
+
             # Update render element path
             try:
                 re_manager.SetRenderElementFilename(element_index, new_path)
                 _logger.debug(f"Updated render element '{element_name}' path to: {new_path}")
             except Exception as e:
                 warnings.append(f"Failed to update path for render element '{element_name}': {e}")
-    
+
     except Exception as e:
         _logger.error(f"Error configuring render element paths: {e}")
         warnings.append(f"Path configuration failed: {e}")
-    
+
     return warnings
 
 
 def configure_vray_render_elements(render_elements: list, settings: dict) -> list:
     """
     Configures V-Ray specific render element settings.
-    
+
     This function handles V-Ray VFB control and split buffer support
     matching Deadline 10's V-Ray integration.
 
@@ -330,21 +328,21 @@ def configure_vray_render_elements(render_elements: list, settings: dict) -> lis
     :return_type: list[str]
     """
     warnings = []
-    
+
     if not render_elements:
         return warnings
-    
+
     vfb_control = settings.get("vray_render_elements_vfb_control", True)
-    split_buffer = settings.get("vray_split_buffer_support", True)
-    
+    # split_buffer = settings.get("vray_split_buffer_support", True)  # TODO: Implement split buffer support
+
     try:
         for element in render_elements:
             element_obj = element.get("element_object")
             if not element_obj:
                 continue
-            
+
             element_name = element.get("name", "")
-            
+
             # Configure V-Ray VFB control
             if hasattr(element_obj, "vrayVFB"):
                 try:
@@ -353,21 +351,21 @@ def configure_vray_render_elements(render_elements: list, settings: dict) -> lis
                     _logger.debug(f"Set V-Ray VFB for '{element_name}': {not vfb_control}")
                 except Exception as e:
                     warnings.append(f"Failed to configure V-Ray VFB for '{element_name}': {e}")
-            
+
             # Additional V-Ray specific configurations can be added here
             # based on element type and settings
-    
+
     except Exception as e:
         _logger.error(f"Error configuring V-Ray render elements: {e}")
         warnings.append(f"V-Ray configuration failed: {e}")
-    
+
     return warnings
 
 
 def store_original_render_element_state(render_elements: list) -> dict:
     """
     Stores original render element state for later restoration.
-    
+
     This function captures the current state of render elements
     to enable restoration after rendering completes.
 
@@ -382,24 +380,24 @@ def store_original_render_element_state(render_elements: list) -> dict:
         "element_enabled": [],
         "vray_vfb_states": [],
     }
-    
+
     try:
         re_manager = rt.maxOps.GetCurRenderElementMgr()
         if not re_manager:
             return original_state
-        
+
         for element in render_elements:
             element_index = element.get("index", -1)
             element_obj = element.get("element_object")
-            
+
             if element_index < 0:
                 continue
-            
+
             # Store original names and paths
             original_state["element_names"].append(element.get("name", ""))
             original_state["element_paths"].append(element.get("output_filename", ""))
             original_state["element_enabled"].append(element.get("enabled", True))
-            
+
             # Store V-Ray VFB states
             if element_obj and hasattr(element_obj, "vrayVFB"):
                 try:
@@ -408,17 +406,17 @@ def store_original_render_element_state(render_elements: list) -> dict:
                     original_state["vray_vfb_states"].append(False)
             else:
                 original_state["vray_vfb_states"].append(False)
-    
+
     except Exception as e:
         _logger.error(f"Error storing original render element state: {e}")
-    
+
     return original_state
 
 
 def restore_original_render_element_state(original_state: dict) -> list:
     """
     Restores original render element state.
-    
+
     This function restores render elements to their original state
     using previously stored state information.
 
@@ -428,25 +426,25 @@ def restore_original_render_element_state(original_state: dict) -> list:
     :return_type: list[str]
     """
     warnings = []
-    
+
     if not original_state:
         return warnings
-    
+
     try:
         re_manager = rt.maxOps.GetCurRenderElementMgr()
         if not re_manager:
             warnings.append("No render element manager found for restoration")
             return warnings
-        
+
         render_elements = get_render_elements()
-        
+
         for i, element in enumerate(render_elements):
             element_index = element.get("index", -1)
             element_obj = element.get("element_object")
-            
+
             if element_index < 0 or i >= len(original_state.get("element_paths", [])):
                 continue
-            
+
             # Restore original paths
             try:
                 original_path = original_state["element_paths"][i]
@@ -454,26 +452,33 @@ def restore_original_render_element_state(original_state: dict) -> list:
                     re_manager.SetRenderElementFilename(element_index, original_path)
             except Exception as e:
                 warnings.append(f"Failed to restore path for render element {i}: {e}")
-            
+
             # Restore V-Ray VFB states
-            if (element_obj and hasattr(element_obj, "vrayVFB") and 
-                i < len(original_state.get("vray_vfb_states", []))):
+            if (
+                element_obj
+                and hasattr(element_obj, "vrayVFB")
+                and i < len(original_state.get("vray_vfb_states", []))
+            ):
                 try:
                     element_obj.vrayVFB = original_state["vray_vfb_states"][i]
                 except Exception as e:
-                    warnings.append(f"Failed to restore V-Ray VFB state for render element {i}: {e}")
-    
+                    warnings.append(
+                        f"Failed to restore V-Ray VFB state for render element {i}: {e}"
+                    )
+
     except Exception as e:
         _logger.error(f"Error restoring original render element state: {e}")
         warnings.append(f"State restoration failed: {e}")
-    
+
     return warnings
 
 
-def _build_render_element_path(base_path: str, element_name: str, element_type: str, settings: dict) -> str:
+def _build_render_element_path(
+    base_path: str, element_name: str, element_type: str, settings: dict
+) -> str:
     """
     Builds render element path based on naming settings.
-    
+
     This is a private helper function that constructs the final path
     based on Deadline 10's path building logic.
 
@@ -493,29 +498,29 @@ def _build_render_element_path(base_path: str, element_name: str, element_type: 
         directory = path_obj.parent
         filename = path_obj.stem
         extension = path_obj.suffix
-        
+
         # Build directory path modifications
         if settings.get("render_elements_include_name_in_path", True):
             purified_name = purify_render_element_name(element_name)
             directory = directory / purified_name
-        
+
         if settings.get("render_elements_include_type_in_path", False):
             purified_type = purify_render_element_name(element_type)
             directory = directory / purified_type
-        
+
         # Build filename modifications
         if settings.get("render_elements_include_name_in_filename", True):
             purified_name = purify_render_element_name(element_name)
             filename = f"{filename}_{purified_name}"
-        
+
         if settings.get("render_elements_include_type_in_filename", False):
             purified_type = purify_render_element_name(element_type)
             filename = f"{filename}_{purified_type}"
-        
+
         # Construct final path
         final_path = directory / f"{filename}{extension}"
         return str(final_path).replace("\\", "/")
-    
+
     except Exception as e:
         _logger.error(f"Error building render element path: {e}")
         return base_path
