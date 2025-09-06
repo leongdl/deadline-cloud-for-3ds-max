@@ -525,10 +525,11 @@ def _build_render_element_path(
         _logger.error(f"Error building render element path: {e}")
         return base_path
 
+
 def detect_missing_render_elements() -> list:
     """
     Detects missing render element plugins in the scene.
-    
+
     This function identifies render elements that reference missing plugins,
     matching Deadline 10's missing element detection system.
 
@@ -536,17 +537,17 @@ def detect_missing_render_elements() -> list:
     :return_type: list[dict]
     """
     missing_elements = []
-    
+
     try:
         re_manager = rt.maxOps.GetCurRenderElementMgr()
         if not re_manager:
             return missing_elements
-        
+
         for i in range(re_manager.NumRenderElements()):
             element = re_manager.GetRenderElement(i)
             if not element:
                 continue
-            
+
             # Check for Missing_Render_Element_Plug_in
             if rt.classof(element) == rt.Missing_Render_Element_Plug_in:
                 missing_info = {
@@ -558,17 +559,17 @@ def detect_missing_render_elements() -> list:
                 }
                 missing_elements.append(missing_info)
                 _logger.warning(f"Found missing render element plugin at index {i}")
-    
+
     except Exception as e:
         _logger.error(f"Error detecting missing render elements: {e}")
-    
+
     return missing_elements
 
 
 def validate_render_element_names(render_elements: list) -> list:
     """
     Validates render element names for duplicates and invalid characters.
-    
+
     This function provides comprehensive name validation matching Deadline 10's
     render element name checking system.
 
@@ -578,46 +579,48 @@ def validate_render_element_names(render_elements: list) -> list:
     :return_type: list[str]
     """
     warnings = []
-    
+
     if not render_elements:
         return warnings
-    
+
     element_names = []
-    
+
     for element in render_elements:
         element_name = element.get("name", "")
         element_index = element.get("index", -1)
-        
+
         # Check for empty names
         if not element_name or element_name.strip() == "":
             warnings.append(f"Render element at index {element_index} has empty name")
             continue
-        
+
         # Check for duplicate names
         if element_name in element_names:
             warnings.append(f"Duplicate render element name found: '{element_name}'")
         else:
             element_names.append(element_name)
-        
+
         # Check for invalid characters
-        invalid_chars = ['<', '>', ':', '"', '|', '?', '*', '/', '\\']
+        invalid_chars = ["<", ">", ":", '"', "|", "?", "*", "/", "\\"]
         found_invalid = [char for char in invalid_chars if char in element_name]
         if found_invalid:
             warnings.append(
                 f"Render element '{element_name}' contains invalid characters: {', '.join(found_invalid)}"
             )
-        
+
         # Check for names that are too long (Windows path limit consideration)
         if len(element_name) > 100:
-            warnings.append(f"Render element name '{element_name}' is too long ({len(element_name)} characters)")
-    
+            warnings.append(
+                f"Render element name '{element_name}' is too long ({len(element_name)} characters)"
+            )
+
     return warnings
 
 
 def resolve_duplicate_render_element_names(render_elements: list) -> dict:
     """
     Resolves duplicate render element names by suggesting unique alternatives.
-    
+
     This function provides name resolution suggestions matching Deadline 10's
     duplicate name handling system.
 
@@ -628,25 +631,25 @@ def resolve_duplicate_render_element_names(render_elements: list) -> dict:
     """
     name_resolutions = {}
     name_counts = {}
-    
+
     # Count occurrences of each name
     for element in render_elements:
         element_name = element.get("name", "")
         if element_name:
             name_counts[element_name] = name_counts.get(element_name, 0) + 1
-    
+
     # Generate unique names for duplicates
     name_counters = {}
     for element in render_elements:
         element_name = element.get("name", "")
         if not element_name:
             continue
-        
+
         # If name appears multiple times, generate unique variant
         if name_counts[element_name] > 1:
             counter = name_counters.get(element_name, 0) + 1
             name_counters[element_name] = counter
-            
+
             if counter == 1:
                 # First occurrence keeps original name
                 continue
@@ -654,14 +657,14 @@ def resolve_duplicate_render_element_names(render_elements: list) -> dict:
                 # Subsequent occurrences get numbered suffix
                 unique_name = f"{element_name}_{counter}"
                 name_resolutions[element_name] = unique_name
-    
+
     return name_resolutions
 
 
 def preview_render_element_paths(render_elements: list, settings: dict) -> dict:
     """
     Previews render element output paths based on current settings.
-    
+
     This function generates path previews without modifying the scene,
     matching Deadline 10's path preview functionality.
 
@@ -673,36 +676,36 @@ def preview_render_element_paths(render_elements: list, settings: dict) -> dict:
     :return_type: dict[str, str]
     """
     path_previews = {}
-    
+
     if not render_elements or not settings.get("render_elements_update_paths", True):
         return path_previews
-    
+
     try:
         for element in render_elements:
             element_name = element.get("name", "")
             element_type = element.get("type", "")
             base_path = element.get("output_filename", "")
-            
+
             if not element_name or not base_path:
                 continue
-            
+
             # Generate preview path using the same logic as actual path building
             preview_path = _build_render_element_path(
                 base_path, element_name, element_type, settings
             )
-            
+
             path_previews[element_name] = preview_path
-    
+
     except Exception as e:
         _logger.error(f"Error generating render element path previews: {e}")
-    
+
     return path_previews
 
 
 def analyze_render_element_compatibility(render_elements: list) -> dict:
     """
     Analyzes render element compatibility with different renderers.
-    
+
     This function provides compatibility analysis matching Deadline 10's
     renderer-specific render element validation.
 
@@ -721,15 +724,15 @@ def analyze_render_element_compatibility(render_elements: list) -> dict:
         "unknown_elements": 0,
         "compatibility_warnings": [],
     }
-    
+
     try:
         # Get current renderer
         current_renderer = str(rt.renderers.current)
-        
+
         for element in render_elements:
             element_type = element.get("type", "").lower()
             element_name = element.get("name", "")
-            
+
             # Categorize by renderer type
             if "vray" in element_type:
                 analysis["vray_elements"] += 1
@@ -755,20 +758,20 @@ def analyze_render_element_compatibility(render_elements: list) -> dict:
                 analysis["standard_elements"] += 1
             else:
                 analysis["unknown_elements"] += 1
-        
+
         _logger.debug(f"Render element compatibility analysis completed: {analysis}")
-    
+
     except Exception as e:
         _logger.error(f"Error analyzing render element compatibility: {e}")
         analysis["compatibility_warnings"].append(f"Compatibility analysis failed: {e}")
-    
+
     return analysis
 
 
 def get_render_element_statistics() -> dict:
     """
     Gets comprehensive statistics about render elements in the scene.
-    
+
     This function provides detailed statistics matching Deadline 10's
     render element reporting system.
 
@@ -787,39 +790,39 @@ def get_render_element_statistics() -> dict:
         "duplicate_names": 0,
         "name_validation_issues": 0,
     }
-    
+
     try:
         render_elements = get_render_elements()
         missing_elements = detect_missing_render_elements()
         name_warnings = validate_render_element_names(render_elements)
         output_dirs = get_render_elements_output_directories()
-        
+
         stats["total_elements"] = len(render_elements)
         stats["missing_elements"] = len(missing_elements)
         stats["unique_output_directories"] = len(output_dirs)
         stats["name_validation_issues"] = len(name_warnings)
-        
+
         # Count duplicate names
         element_names = [elem.get("name", "") for elem in render_elements]
         stats["duplicate_names"] = len(element_names) - len(set(element_names))
-        
+
         for element in render_elements:
             if element.get("enabled", True):
                 stats["enabled_elements"] += 1
             else:
                 stats["disabled_elements"] += 1
-            
+
             if element.get("has_output_path", False):
                 stats["elements_with_paths"] += 1
             else:
                 stats["elements_without_paths"] += 1
-            
+
             if element.get("vray_vfb", False):
                 stats["vray_vfb_enabled"] += 1
-        
+
         _logger.info(f"Render element statistics: {stats}")
-    
+
     except Exception as e:
         _logger.error(f"Error getting render element statistics: {e}")
-    
+
     return stats

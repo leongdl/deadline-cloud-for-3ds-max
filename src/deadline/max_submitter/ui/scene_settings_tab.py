@@ -36,7 +36,7 @@ from qtpy.QtWidgets import (  # type: ignore
     QWidget,
 )
 from deadline.max_submitter.utilities import max_utils
-from deadline.max_submitter.ui.render_elements_widget import EnhancedRenderElementsWidget
+from deadline.max_submitter.ui.render_elements_widget import RenderElementsWidget
 
 _logger = logging.getLogger(__name__)
 
@@ -233,8 +233,8 @@ class SceneSettingsWidget(QWidget):
         self._build_scene_tweaks_ui()
         lyt.addWidget(self.scene_tweaks_grp_box, 9, 0, 3, 5)
 
-        # Enhanced render elements widget
-        self.render_elements_widget = EnhancedRenderElementsWidget(settings, self)
+        # Authentic Deadline 10 render elements widget
+        self.render_elements_widget = RenderElementsWidget(settings, self)
         self.render_elements_widget.settings_changed.connect(
             self._on_render_elements_settings_changed
         )
@@ -522,8 +522,8 @@ class SceneSettingsWidget(QWidget):
         if self.developer_options:
             (self.include_adaptor_wheels.setChecked(settings.include_adaptor_wheels))
 
-        # Update enhanced render elements widget
-        self.render_elements_widget.update_from_settings(settings)
+        # Update render elements widget from settings
+        self.render_elements_widget.update_settings_from_data_class(settings)
 
     def update_settings(self, settings):
         """
@@ -558,8 +558,8 @@ class SceneSettingsWidget(QWidget):
         else:
             settings.include_adaptor_wheels = False
 
-        # Update render elements settings from enhanced widget
-        self.render_elements_widget.update_settings_from_widget(settings)
+        # Update render elements settings from widget
+        self.render_elements_widget.update_data_class_from_settings(settings)
 
         # Update render element output filenames from detected elements
         try:
@@ -597,3 +597,22 @@ class SceneSettingsWidget(QWidget):
         # If the selected renderer isn't in the list set it to the 'Renderer not supported' option
         else:
             self.renderers_box.setCurrentIndex(0)
+
+    def _on_render_elements_settings_changed(self):
+        """
+        Handle render elements settings changes from the widget.
+        """
+        _logger.debug("Render elements settings changed")
+        # Settings are automatically updated when the parent calls update_settings()
+
+    def _on_render_elements_validation_changed(self, warnings):
+        """
+        Handle render elements validation changes from the widget.
+
+        :param warnings: List of validation warning messages
+        :type warnings: list[str]
+        """
+        if warnings:
+            _logger.warning(f"Render elements validation warnings: {warnings}")
+        else:
+            _logger.debug("Render elements validation passed")

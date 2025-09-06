@@ -81,8 +81,7 @@ class RenderSubmitterUISettings:
     # Render Elements (Basic Support - already implemented)
     # Enable/disable render elements output
     render_elements: bool = field(default=True, metadata={"sticky": True})
-    # Ignore all render elements in the scene
-    ignore_render_elements: bool = field(default=False, metadata={"sticky": True})
+
     # List of specific render element names to ignore
     ignore_render_elements_by_name: list[str] = field(
         default_factory=list, metadata={"sticky": True}
@@ -93,8 +92,7 @@ class RenderSubmitterUISettings:
     # Enhanced Render Elements (building on existing basic support - Deadline 10 feature parity)
     # Automatically update render element output paths during submission
     render_elements_update_paths: bool = field(default=True, metadata={"sticky": True})
-    # Automatically update render element filenames during submission
-    render_elements_update_filenames: bool = field(default=True, metadata={"sticky": True})
+
     # Include render element name in the output directory path
     render_elements_include_name_in_path: bool = field(default=True, metadata={"sticky": True})
     # Include render element type (class name) in the output directory path
@@ -103,12 +101,7 @@ class RenderSubmitterUISettings:
     render_elements_include_name_in_filename: bool = field(default=True, metadata={"sticky": True})
     # Include render element type (class name) in the output filename
     render_elements_include_type_in_filename: bool = field(default=False, metadata={"sticky": True})
-    # Make permanent changes to render element paths in the scene file
-    render_elements_permanent_changes: bool = field(default=True, metadata={"sticky": True})
-    # Make permanent changes to render element names in the scene file
-    render_element_names_permanent_changes: bool = field(default=True, metadata={"sticky": True})
-    # Rebuild render elements configuration during submission
-    rebuild_render_elements: bool = field(default=True, metadata={"sticky": True})
+
     # Store original render element names for restoration after submission
     original_render_element_names: list[str] = field(default_factory=list)
 
@@ -117,8 +110,6 @@ class RenderSubmitterUISettings:
     vray_render_elements_vfb_control: bool = field(default=True, metadata={"sticky": True})
     # Enable V-Ray split buffer functionality for render elements
     vray_split_buffer_support: bool = field(default=True, metadata={"sticky": True})
-    # Use V-Ray separate folders feature for render element organization
-    vray_separate_folders: bool = field(default=False, metadata={"sticky": True})
 
     # Developer options
     include_adaptor_wheels: bool = field(default=False, metadata={"sticky": True})
@@ -244,20 +235,11 @@ class RenderSubmitterUISettings:
         """
         warnings = []
 
-        # Check if render elements are enabled but all are being ignored
-        if self.render_elements and self.ignore_render_elements:
-            warnings.append("Render elements are enabled but all elements are set to be ignored")
-
-        # Check for conflicting path/filename settings
-        if not self.render_elements_update_paths and self.render_elements_update_filenames:
+        # Basic validation - check if ignore list has invalid names
+        invalid_names = self.validate_render_element_names()
+        if invalid_names:
             warnings.append(
-                "Render element filenames will be updated but paths will not be updated - this may cause inconsistencies"
-            )
-
-        # Check if permanent changes are enabled without backup
-        if self.render_elements_permanent_changes and not self.original_render_element_names:
-            warnings.append(
-                "Permanent render element changes are enabled but no original names are stored for restoration"
+                f"Ignored render element names not found in scene: {', '.join(invalid_names)}"
             )
 
         # Check V-Ray specific settings consistency
