@@ -345,7 +345,7 @@ def get_parameters_values(
     """
     # Validate render elements parameter consistency
     _validate_render_elements_parameters(settings)
-    
+
     parameter_values = _get_job_parameters(settings, state_sets)
     queue_parameters = _get_queue_parameters_for_bundle(
         settings, parameter_values, queue_parameters
@@ -433,46 +433,39 @@ def _get_job_parameters(
     render_elements = max_utils.get_render_elements()
     if render_elements:
         # RenderElements parameter
-        parameter_values.append({
-            "name": "RenderElements",
-            "value": "true" if settings.render_elements else "false"
-        })
+        parameter_values.append(
+            {"name": "RenderElements", "value": "true" if settings.render_elements else "false"}
+        )
 
         # IgnoreRenderElements parameter
-        parameter_values.append({
-            "name": "IgnoreRenderElements", 
-            "value": "true" if settings.ignore_render_elements else "false"
-        })
+        parameter_values.append(
+            {
+                "name": "IgnoreRenderElements",
+                "value": "true" if settings.ignore_render_elements else "false",
+            }
+        )
 
         # IgnoreRenderElementsByName parameter
         if settings.ignore_render_elements_by_name:
             # Convert list to comma-separated string for OpenJD
             ignore_names_str = ",".join(settings.ignore_render_elements_by_name)
-            parameter_values.append({
-                "name": "IgnoreRenderElementsByName",
-                "value": ignore_names_str
-            })
+            parameter_values.append(
+                {"name": "IgnoreRenderElementsByName", "value": ignore_names_str}
+            )
         elif any(elem.get("name") for elem in render_elements):
             # Add empty parameter if render elements exist but none are ignored
-            parameter_values.append({
-                "name": "IgnoreRenderElementsByName",
-                "value": ""
-            })
+            parameter_values.append({"name": "IgnoreRenderElementsByName", "value": ""})
 
         # RenderElementOutputFilenames parameter
         if settings.render_element_output_filenames:
             # Convert list to comma-separated string for OpenJD
             output_filenames_str = ",".join(settings.render_element_output_filenames)
-            parameter_values.append({
-                "name": "RenderElementOutputFilenames",
-                "value": output_filenames_str
-            })
+            parameter_values.append(
+                {"name": "RenderElementOutputFilenames", "value": output_filenames_str}
+            )
         elif any(elem.get("output_filename") for elem in render_elements):
             # Add empty parameter if render elements exist but no output filenames
-            parameter_values.append({
-                "name": "RenderElementOutputFilenames",
-                "value": ""
-            })
+            parameter_values.append({"name": "RenderElementOutputFilenames", "value": ""})
 
     return parameter_values
 
@@ -529,17 +522,18 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
     # If render elements are disabled, ignore other settings
     if not settings.render_elements:
         return
-        
+
     # If ignoring all render elements, ignore by name list should be empty or irrelevant
     if settings.ignore_render_elements and settings.ignore_render_elements_by_name:
         # This is not an error, but log a warning that ignore by name will be ignored
         import logging
+
         _logger = logging.getLogger(__name__)
         _logger.warning(
             "Both 'ignore all render elements' and 'ignore by name' are set. "
             "The 'ignore by name' list will be ignored since all render elements are being ignored."
         )
-    
+
     # Validate that ignored render element names exist in the scene
     if settings.ignore_render_elements_by_name:
         try:
@@ -552,9 +546,10 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
         except Exception as e:
             # If validation fails, log warning but don't fail submission
             import logging
+
             _logger = logging.getLogger(__name__)
             _logger.warning(f"Could not validate render element names: {e}")
-    
+
     # Validate render element output paths
     if settings.render_element_output_filenames:
         try:
@@ -567,6 +562,7 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
         except Exception as e:
             # If validation fails, log warning but don't fail submission
             import logging
+
             _logger = logging.getLogger(__name__)
             _logger.warning(f"Could not validate render element paths: {e}")
 
