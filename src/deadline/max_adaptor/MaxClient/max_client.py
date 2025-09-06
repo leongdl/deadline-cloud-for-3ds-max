@@ -69,6 +69,11 @@ class MaxClient(ClientInterface):
         """
         logger.debug("setting render handler")
         render_handler = get_render_handler(renderer["renderer"])
+
+        # Set client reference in render handler for render elements integration
+        if hasattr(render_handler, "set_client"):
+            render_handler.set_client(self)
+
         self.actions.update(render_handler.action_dict)
 
     def close(self, args: Optional[dict] = None) -> None:
