@@ -355,56 +355,135 @@ class EnhancedRenderElementsWidget(QWidget):
 
     def _refresh_detected_elements(self):
         """
-        Refresh the list of detected render elements from the scene.
+        Refresh the list of detected render elements from the scene with enhanced detection.
+        
+        Uses Task 1.4 enhanced detection functions for comprehensive analysis.
         """
         self.detected_elements_list.clear()
 
         try:
+            # Enhanced detection using Task 1.4 functions
             render_elements = max_utils.get_render_elements()
+            missing_elements = max_utils.detect_missing_render_elements()
+            element_stats = max_utils.get_render_element_statistics()
+            compatibility_analysis = max_utils.analyze_render_element_compatibility(render_elements)
 
-            if not render_elements:
+            # Display statistics header
+            stats_text = (
+                f"Scene Statistics: {element_stats['total_elements']} total, "
+                f"{element_stats['enabled_elements']} enabled, "
+                f"{element_stats['missing_elements']} missing"
+            )
+            stats_item = QListWidgetItem(f"📊 {stats_text}")
+            stats_item.setToolTip(
+                f"Total Elements: {element_stats['total_elements']}\n"
+                f"Enabled: {element_stats['enabled_elements']}\n"
+                f"Disabled: {element_stats['disabled_elements']}\n"
+                f"With Paths: {element_stats['elements_with_paths']}\n"
+                f"Missing Paths: {element_stats['elements_without_paths']}\n"
+                f"Missing Plugins: {element_stats['missing_elements']}\n"
+                f"Duplicate Names: {element_stats['duplicate_names']}\n"
+                f"V-Ray VFB Enabled: {element_stats['vray_vfb_enabled']}"
+            )
+            self.detected_elements_list.addItem(stats_item)
+
+            # Display compatibility warnings if any
+            if compatibility_analysis.get("compatibility_warnings"):
+                warning_item = QListWidgetItem("⚠️ Renderer Compatibility Issues Detected")
+                warning_tooltip = "Compatibility Warnings:\n" + "\n".join(
+                    compatibility_analysis["compatibility_warnings"]
+                )
+                warning_item.setToolTip(warning_tooltip)
+                self.detected_elements_list.addItem(warning_item)
+
+            # Display missing elements first
+            if missing_elements:
+                missing_header = QListWidgetItem(f"❌ Missing Elements ({len(missing_elements)})")
+                missing_header.setToolTip("These render elements reference missing plugins")
+                self.detected_elements_list.addItem(missing_header)
+                
+                for missing in missing_elements:
+                    name = missing.get("name", "Unknown")
+                    original_class = missing.get("original_class", "Unknown")
+                    enabled = missing.get("enabled", True)
+                    
+                    status = "ENABLED" if enabled else "DISABLED"
+                    display_text = f"  🔴 {name} - Missing Plugin ({status})"
+                    
+                    item = QListWidgetItem(display_text)
+                    tooltip = (
+                        f"Name: {name}\n"
+                        f"Status: Missing Plugin\n"
+                        f"Original Class: {original_class}\n"
+                        f"Enabled: {enabled}\n"
+                        f"Action: Install missing plugin or remove element"
+                    )
+                    item.setToolTip(tooltip)
+                    self.detected_elements_list.addItem(item)
+
+            # Display regular render elements
+            if not render_elements and not missing_elements:
                 item = QListWidgetItem("No render elements detected in scene")
                 item.setToolTip("No render elements found in the current 3ds Max scene")
                 self.detected_elements_list.addItem(item)
                 return
 
-            for element in render_elements:
-                name = element.get("name", "Unknown")
-                element_type = element.get("type", "Unknown")
-                enabled = element.get("enabled", True)
-                has_output = element.get("has_output_path", False)
-                output_filename = element.get("output_filename", "")
-                vray_vfb = element.get("vray_vfb", False)
+            if render_elements:
+                elements_header = QListWidgetItem(f"✅ Active Elements ({len(render_elements)})")
+                elements_header.setToolTip("Currently active render elements in the scene")
+                self.detected_elements_list.addItem(elements_header)
 
-                # Create status indicators
-                status_parts = []
-                if not enabled:
-                    status_parts.append("DISABLED")
-                if not has_output:
-                    status_parts.append("NO OUTPUT PATH")
-                if vray_vfb:
-                    status_parts.append("V-RAY VFB")
+                for element in render_elements:
+                    name = element.get("name", "Unknown")
+                    element_type = element.get("type", "Unknown")
+                    enabled = element.get("enabled", True)
+                    has_output = element.get("has_output_path", False)
+                    output_filename = element.get("output_filename", "")
+                    vray_vfb = element.get("vray_vfb", False)
 
-                status_text = f" ({', '.join(status_parts)})" if status_parts else ""
-                display_text = f"{name} - {element_type}{status_text}"
+                    # Enhanced status indicators
+                    status_parts = []
+                    status_icon = "🟢"  # Default green for enabled with output
+                    
+                    if not enabled:
+                        status_parts.append("DISABLED")
+                        status_icon = "🔴"
+                    elif not has_output:
+                        status_parts.append("NO OUTPUT PATH")
+                        status_icon = "🟡"
+                    
+                    if vray_vfb:
+                        status_parts.append("V-RAY VFB")
+                    
+                    # Renderer-specific indicators
+                    if "vray" in element_type.lower():
+                        status_parts.append("V-RAY")
+                    elif "corona" in element_type.lower():
+                        status_parts.append("CORONA")
+                    elif "arnold" in element_type.lower():
+                        status_parts.append("ARNOLD")
 
-                item = QListWidgetItem(display_text)
-                tooltip = (
-                    f"Name: {name}\n"
-                    f"Type: {element_type}\n"
-                    f"Enabled: {enabled}\n"
-                    f"V-Ray VFB: {vray_vfb}\n"
-                    f"Output: {output_filename or 'Not set'}"
-                )
-                item.setToolTip(tooltip)
-                self.detected_elements_list.addItem(item)
+                    status_text = f" ({', '.join(status_parts)})" if status_parts else ""
+                    display_text = f"  {status_icon} {name} - {element_type}{status_text}"
+
+                    item = QListWidgetItem(display_text)
+                    tooltip = (
+                        f"Name: {name}\n"
+                        f"Type: {element_type}\n"
+                        f"Enabled: {enabled}\n"
+                        f"V-Ray VFB: {vray_vfb}\n"
+                        f"Output: {output_filename or 'Not set'}\n"
+                        f"Index: {element.get('index', 'Unknown')}"
+                    )
+                    item.setToolTip(tooltip)
+                    self.detected_elements_list.addItem(item)
 
         except Exception as e:
             _logger.error(f"Error refreshing render elements: {e}")
-            item = QListWidgetItem(f"Error detecting render elements: {e}")
+            item = QListWidgetItem(f"❌ Error detecting render elements: {e}")
             self.detected_elements_list.addItem(item)
 
-        self._validate_render_elements()
+        self._validate_render_elements_enhanced()
 
     def _validate_render_elements(self):
         """
@@ -452,6 +531,173 @@ class EnhancedRenderElementsWidget(QWidget):
 
         # Emit validation signal
         self.validation_changed.emit(feedback_messages)
+
+    def _validate_render_elements_enhanced(self):
+        """
+        Enhanced validation using Task 1.4 functions for comprehensive analysis.
+        
+        This method provides comprehensive validation matching Deadline 10's
+        render element validation system.
+        """
+        feedback_messages = []
+
+        try:
+            # Get current render elements and enhanced analysis
+            render_elements = max_utils.get_render_elements()
+            missing_elements = max_utils.detect_missing_render_elements()
+            name_warnings = max_utils.validate_render_element_names(render_elements)
+            compatibility_analysis = max_utils.analyze_render_element_compatibility(render_elements)
+            element_stats = max_utils.get_render_element_statistics()
+
+            # Validate paths using existing function
+            path_warnings = max_utils.validate_render_element_paths(render_elements)
+            feedback_messages.extend(path_warnings)
+
+            # Add name validation warnings
+            feedback_messages.extend(name_warnings)
+
+            # Add missing element warnings
+            if missing_elements:
+                feedback_messages.append(
+                    f"⚠️ {len(missing_elements)} missing render element plugin(s) detected"
+                )
+                for missing in missing_elements:
+                    feedback_messages.append(
+                        f"  • Missing plugin: {missing.get('original_class', 'Unknown')}"
+                    )
+
+            # Add compatibility warnings
+            if compatibility_analysis.get("compatibility_warnings"):
+                feedback_messages.append("⚠️ Renderer compatibility issues detected:")
+                for warning in compatibility_analysis["compatibility_warnings"]:
+                    feedback_messages.append(f"  • {warning}")
+
+            # Add duplicate name resolution suggestions
+            if element_stats.get("duplicate_names", 0) > 0:
+                duplicate_resolutions = max_utils.resolve_duplicate_render_element_names(render_elements)
+                if duplicate_resolutions:
+                    feedback_messages.append("⚠️ Duplicate render element names detected:")
+                    for original, suggested in duplicate_resolutions.items():
+                        feedback_messages.append(f"  • Rename '{original}' to '{suggested}'")
+
+            # Validate ignore list against actual scene elements
+            ignore_names = []
+            for i in range(self.ignore_elements_list.count()):
+                ignore_names.append(self.ignore_elements_list.item(i).text())
+
+            if ignore_names:
+                scene_element_names = [elem.get("name", "") for elem in render_elements]
+                invalid_names = [name for name in ignore_names if name not in scene_element_names]
+
+                for invalid_name in invalid_names:
+                    feedback_messages.append(f"⚠️ Ignored element '{invalid_name}' not found in scene")
+
+            # Validate configuration consistency
+            settings_dict = self.get_settings_dict()
+            config_warnings = max_utils.validate_render_element_configuration(
+                render_elements, settings_dict
+            )
+            feedback_messages.extend(config_warnings)
+
+            # Add path preview information if path updates are enabled
+            if settings_dict.get("render_elements_update_paths", True) and render_elements:
+                try:
+                    path_previews = max_utils.preview_render_element_paths(render_elements, settings_dict)
+                    if path_previews:
+                        feedback_messages.append(f"ℹ️ Path updates will be applied to {len(path_previews)} elements")
+                except Exception as e:
+                    feedback_messages.append(f"⚠️ Error generating path previews: {e}")
+
+        except Exception as e:
+            _logger.error(f"Error in enhanced render elements validation: {e}")
+            feedback_messages.append(f"❌ Error validating render elements: {e}")
+
+        # Display enhanced feedback with better formatting
+        if feedback_messages:
+            # Separate warnings and info messages
+            warnings = [msg for msg in feedback_messages if msg.startswith(("⚠️", "❌"))]
+            info_messages = [msg for msg in feedback_messages if msg.startswith("ℹ️")]
+            other_messages = [msg for msg in feedback_messages if not msg.startswith(("⚠️", "❌", "ℹ️"))]
+            
+            # Format display text
+            display_parts = []
+            if warnings:
+                display_parts.extend(warnings)
+            if other_messages:
+                display_parts.extend(other_messages)
+            if info_messages:
+                display_parts.extend(info_messages)
+            
+            self.validation_feedback_label.setText("\n".join(display_parts))
+            
+            # Set color based on severity
+            if warnings:
+                self.validation_feedback_label.setStyleSheet("color: orange;")
+            else:
+                self.validation_feedback_label.setStyleSheet("color: blue;")
+        else:
+            self.validation_feedback_label.setText("✅ Render elements configuration is valid")
+            self.validation_feedback_label.setStyleSheet("color: green;")
+
+        # Emit validation signal with all messages
+        self.validation_changed.emit(feedback_messages)
+
+    def _preview_render_element_paths(self):
+        """
+        Preview render element paths with current settings using Task 1.4 functionality.
+        
+        Shows users what the updated paths will look like without modifying the scene.
+        """
+        try:
+            render_elements = max_utils.get_render_elements()
+            if not render_elements:
+                self.validation_feedback_label.setText("ℹ️ No render elements found to preview")
+                self.validation_feedback_label.setStyleSheet("color: blue;")
+                return
+
+            settings_dict = self.get_settings_dict()
+            
+            if not settings_dict.get("render_elements_update_paths", True):
+                self.validation_feedback_label.setText("ℹ️ Path updates are disabled - enable to see previews")
+                self.validation_feedback_label.setStyleSheet("color: blue;")
+                return
+
+            # Generate path previews using Task 1.4 function
+            path_previews = max_utils.preview_render_element_paths(render_elements, settings_dict)
+            
+            if not path_previews:
+                self.validation_feedback_label.setText("ℹ️ No path previews available")
+                self.validation_feedback_label.setStyleSheet("color: blue;")
+                return
+
+            # Format preview display
+            preview_messages = [f"🔍 Path Previews ({len(path_previews)} elements):"]
+            
+            for element_name, preview_path in path_previews.items():
+                # Find original path for comparison
+                original_path = "Not set"
+                for element in render_elements:
+                    if element.get("name") == element_name:
+                        original_path = element.get("output_filename", "Not set")
+                        break
+                
+                if original_path != preview_path:
+                    preview_messages.append(f"  • {element_name}:")
+                    preview_messages.append(f"    Original: {original_path}")
+                    preview_messages.append(f"    Preview:  {preview_path}")
+                else:
+                    preview_messages.append(f"  • {element_name}: No changes")
+
+            # Display previews in validation feedback area
+            self.validation_feedback_label.setText("\n".join(preview_messages))
+            self.validation_feedback_label.setStyleSheet("color: blue;")
+            
+            _logger.info(f"Generated path previews for {len(path_previews)} render elements")
+
+        except Exception as e:
+            _logger.error(f"Error generating render element path previews: {e}")
+            self.validation_feedback_label.setText(f"❌ Error generating path previews: {e}")
+            self.validation_feedback_label.setStyleSheet("color: red;")
 
     def get_settings_dict(self) -> dict:
         """

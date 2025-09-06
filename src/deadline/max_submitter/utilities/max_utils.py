@@ -23,6 +23,13 @@ from deadline.max_shared.utilities.max_utils import (  # noqa: F401
     configure_vray_render_elements,
     store_original_render_element_state,
     restore_original_render_element_state,
+    # Enhanced scene detection functions (Task 1.4)
+    detect_missing_render_elements,
+    validate_render_element_names,
+    resolve_duplicate_render_element_names,
+    preview_render_element_paths,
+    analyze_render_element_compatibility,
+    get_render_element_statistics,
 )
 
 _logger = logging.getLogger(__name__)
