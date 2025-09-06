@@ -435,7 +435,7 @@ def _get_job_parameters(
         # RenderElements parameter
         parameter_values.append({
             "name": "RenderElements",
-            "value": "true" if settings.elements else "false"
+            "value": "true" if settings.render_elements else "false"
         })
 
         # IgnoreRenderElements parameter
@@ -527,7 +527,7 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
     :raises DeadlineOperationError: if render elements parameters are inconsistent
     """
     # If render elements are disabled, ignore other settings
-    if not settings.elements:
+    if not settings.render_elements:
         return
         
     # If ignoring all render elements, ignore by name list should be empty or irrelevant

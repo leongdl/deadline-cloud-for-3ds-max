@@ -563,7 +563,7 @@ class SceneSettingsWidget(QWidget):
             (self.include_adaptor_wheels.setChecked(settings.include_adaptor_wheels))
 
         # Configure render elements settings
-        self.elements_chck.setChecked(settings.elements)
+        self.elements_chck.setChecked(settings.render_elements)
         self.ignore_render_elements_chck.setChecked(settings.ignore_render_elements)
         
         # Populate ignore elements list
@@ -572,7 +572,7 @@ class SceneSettingsWidget(QWidget):
             self.ignore_elements_list.addItem(element_name)
             
         # Update control states
-        self._on_elements_enabled_changed(Qt.Checked if settings.elements else Qt.Unchecked)
+        self._on_elements_enabled_changed(Qt.Checked if settings.render_elements else Qt.Unchecked)
         self._on_ignore_all_changed(Qt.Checked if settings.ignore_render_elements else Qt.Unchecked)
 
     def update_settings(self, settings):
@@ -609,7 +609,7 @@ class SceneSettingsWidget(QWidget):
             settings.include_adaptor_wheels = False
 
         # Update render elements settings
-        settings.elements = self.elements_chck.isChecked()
+        settings.render_elements = self.elements_chck.isChecked()
         settings.ignore_render_elements = self.ignore_render_elements_chck.isChecked()
         
         # Update ignore elements by name list

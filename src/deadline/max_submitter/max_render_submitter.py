@@ -164,7 +164,7 @@ def on_create_job_bundle_callback(
             state_set.frame_range = settings.frame_list
 
     # Add render element output directories to output_directories set
-    if settings.elements and not settings.ignore_render_elements:
+    if settings.render_elements and not settings.ignore_render_elements:
         try:
             render_element_dirs = max_utils.get_render_elements_output_directories()
             output_directories.update(render_element_dirs)
@@ -178,7 +178,7 @@ def on_create_job_bundle_callback(
             _logger.warning(f"Failed to get render element output directories: {e}")
 
     # Validate render element output paths are accessible
-    if settings.elements and settings.render_element_output_filenames:
+    if settings.render_elements and settings.render_element_output_filenames:
         try:
             render_elements = max_utils.get_render_elements()
             path_warnings = max_utils.validate_render_element_paths(render_elements)
