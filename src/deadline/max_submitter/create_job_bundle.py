@@ -126,18 +126,116 @@ def _create_param_definitions(
             }
         )
 
-        # IgnoreRenderElements parameter - whether to ignore all render elements
+        # Enhanced Render Elements Parameters (Authentic Deadline 10 features)
+
+        # RenderElementsUpdatePaths parameter - whether to update render element paths
         job_template["parameterDefinitions"].append(
             {
-                "name": "IgnoreRenderElements",
+                "name": "RenderElementsUpdatePaths",
                 "type": "STRING",
                 "userInterface": {
                     "control": "CHECK_BOX",
-                    "label": "Ignore All Render Elements",
+                    "label": "Update Render Element Paths",
                     "groupLabel": "Render Elements",
                 },
-                "description": "Ignore all render elements in the scene.",
+                "description": "Automatically update render element output paths based on naming settings.",
+                "default": "true",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # RenderElementsIncludeNameInPath parameter - include element name in path
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "RenderElementsIncludeNameInPath",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Include Render Element Name in Path",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Add render element name as subdirectory in output path.",
+                "default": "true",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # RenderElementsIncludeTypeInPath parameter - include element type in path
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "RenderElementsIncludeTypeInPath",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Include Render Element Type in Path",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Add render element type as subdirectory in output path.",
                 "default": "false",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # RenderElementsIncludeNameInFilename parameter - include element name in filename
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "RenderElementsIncludeNameInFilename",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Include Render Element Name in Filename",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Add render element name to output filename.",
+                "default": "true",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # RenderElementsIncludeTypeInFilename parameter - include element type in filename
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "RenderElementsIncludeTypeInFilename",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "Include Render Element Type in Filename",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Add render element type to output filename.",
+                "default": "false",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # VRayRenderElementsVFBControl parameter - V-Ray VFB control
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "VRayRenderElementsVFBControl",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "V-Ray Render Elements VFB Control",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Automatically control V-Ray VFB settings for render elements during rendering.",
+                "default": "true",
+                "allowedValues": ["true", "false"],
+            }
+        )
+
+        # VRaySplitBufferSupport parameter - V-Ray split buffer support
+        job_template["parameterDefinitions"].append(
+            {
+                "name": "VRaySplitBufferSupport",
+                "type": "STRING",
+                "userInterface": {
+                    "control": "CHECK_BOX",
+                    "label": "V-Ray Split Buffer Support",
+                    "groupLabel": "Render Elements",
+                },
+                "description": "Enable V-Ray split buffer support for render elements.",
+                "default": "true",
                 "allowedValues": ["true", "false"],
             }
         )
@@ -437,11 +535,61 @@ def _get_job_parameters(
             {"name": "RenderElements", "value": "true" if settings.render_elements else "false"}
         )
 
-        # IgnoreRenderElements parameter
+        # Enhanced Render Elements Parameter Values (Authentic Deadline 10 features)
+
+        # RenderElementsUpdatePaths parameter
         parameter_values.append(
             {
-                "name": "IgnoreRenderElements",
-                "value": "true" if settings.ignore_render_elements else "false",
+                "name": "RenderElementsUpdatePaths",
+                "value": "true" if settings.render_elements_update_paths else "false",
+            }
+        )
+
+        # RenderElementsIncludeNameInPath parameter
+        parameter_values.append(
+            {
+                "name": "RenderElementsIncludeNameInPath",
+                "value": "true" if settings.render_elements_include_name_in_path else "false",
+            }
+        )
+
+        # RenderElementsIncludeTypeInPath parameter
+        parameter_values.append(
+            {
+                "name": "RenderElementsIncludeTypeInPath",
+                "value": "true" if settings.render_elements_include_type_in_path else "false",
+            }
+        )
+
+        # RenderElementsIncludeNameInFilename parameter
+        parameter_values.append(
+            {
+                "name": "RenderElementsIncludeNameInFilename",
+                "value": "true" if settings.render_elements_include_name_in_filename else "false",
+            }
+        )
+
+        # RenderElementsIncludeTypeInFilename parameter
+        parameter_values.append(
+            {
+                "name": "RenderElementsIncludeTypeInFilename",
+                "value": "true" if settings.render_elements_include_type_in_filename else "false",
+            }
+        )
+
+        # VRayRenderElementsVFBControl parameter
+        parameter_values.append(
+            {
+                "name": "VRayRenderElementsVFBControl",
+                "value": "true" if settings.vray_render_elements_vfb_control else "false",
+            }
+        )
+
+        # VRaySplitBufferSupport parameter
+        parameter_values.append(
+            {
+                "name": "VRaySplitBufferSupport",
+                "value": "true" if settings.vray_split_buffer_support else "false",
             }
         )
 
@@ -523,21 +671,21 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
     if not settings.render_elements:
         return
 
-    # If ignoring all render elements, ignore by name list should be empty or irrelevant
-    if settings.ignore_render_elements and settings.ignore_render_elements_by_name:
-        # This is not an error, but log a warning that ignore by name will be ignored
-        import logging
-
-        _logger = logging.getLogger(__name__)
-        _logger.warning(
-            "Both 'ignore all render elements' and 'ignore by name' are set. "
-            "The 'ignore by name' list will be ignored since all render elements are being ignored."
-        )
-
     # Validate that ignored render element names exist in the scene
     if settings.ignore_render_elements_by_name:
         try:
-            invalid_names = settings.validate_render_element_names()
+            # Get current render elements from scene to validate ignore list
+            render_elements = max_utils.get_render_elements()
+            scene_element_names = {
+                elem.get("name", "") for elem in render_elements if elem.get("name")
+            }
+
+            invalid_names = [
+                name
+                for name in settings.ignore_render_elements_by_name
+                if name not in scene_element_names
+            ]
+
             if invalid_names:
                 raise DeadlineOperationError(
                     f"The following render element names to ignore do not exist in the scene: "
@@ -550,15 +698,20 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
             _logger = logging.getLogger(__name__)
             _logger.warning(f"Could not validate render element names: {e}")
 
-    # Validate render element output paths
+    # Basic validation for render element output filenames
     if settings.render_element_output_filenames:
         try:
-            invalid_paths = settings.validate_render_element_paths()
+            # Basic path validation - check if paths are not empty
+            invalid_paths = [
+                path for path in settings.render_element_output_filenames if not path.strip()
+            ]
+
             if invalid_paths:
-                raise DeadlineOperationError(
-                    f"The following render element output paths are invalid or inaccessible: "
-                    f"{', '.join(invalid_paths)}"
-                )
+                import logging
+
+                _logger = logging.getLogger(__name__)
+                _logger.warning("Some render element output paths are empty or invalid")
+
         except Exception as e:
             # If validation fails, log warning but don't fail submission
             import logging
