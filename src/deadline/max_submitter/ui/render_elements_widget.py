@@ -47,6 +47,27 @@ class RenderElementsWidget(QWidget):
         self._connect_signals()
         self._refresh_detected_elements()
 
+    def _remove_emojis(self, text):
+        """
+        Remove status emoji characters from render element text to prevent Unicode encoding issues.
+        
+        Specifically removes the status indicator emojis used in the render elements widget:
+        - 🟢 (Green circle) = Enabled with output path
+        - 🟡 (Yellow circle) = Enabled without output path  
+        - 🔴 (Red circle) = Disabled
+        - ❌ (Cross mark) = Error indicator
+        
+        Args:
+            text (str): Text that may contain status emoji characters
+            
+        Returns:
+            str: Text with status emojis removed and whitespace cleaned up
+        """
+        # Remove specific status emojis used in this widget
+        clean_text = text.replace('🟢', '').replace('🟡', '').replace('🔴', '').replace('❌', '')
+        # Clean up extra whitespace
+        return ' '.join(clean_text.split())
+
     def _build_render_elements_ui(self):
         """
         Build the authentic Deadline 10 render elements UI with single unified group box.
@@ -227,22 +248,23 @@ class RenderElementsWidget(QWidget):
         # Get the actual element name from stored item data
         element_name = current_item.data(Qt.UserRole)
         if not element_name:
-            # Fallback: extract from display text if data is not available
-            display_text = current_item.text()
-            if " - " in display_text:
-                name_part = display_text.split(" - ")[0]
-                # Remove the emoji (first character) and any leading/trailing spaces
-                element_name = name_part[1:].strip() if len(name_part) > 1 else name_part.strip()
-            else:
-                element_name = display_text[1:].strip() if len(display_text) > 1 else display_text.strip()
+            # Fallback: extract clean name from display text
+            element_name = self._remove_emojis(current_item.text())
+            # Further clean up if there's a " - " separator
+            if " - " in element_name:
+                element_name = element_name.split(" - ")[0].strip()
 
-        # Check if already in ignore list
+        # Check if already in ignore list (compare clean names)
         for i in range(self.ignore_elements_list.count()):
-            if self.ignore_elements_list.item(i).text() == element_name:
+            existing_item = self.ignore_elements_list.item(i)
+            existing_name = existing_item.data(Qt.UserRole) or self._remove_emojis(existing_item.text())
+            if existing_name == element_name:
                 return  # Already in list
 
-        # Add to ignore list
-        self.ignore_elements_list.addItem(element_name)
+        # Add to ignore list with clean name
+        ignore_item = QListWidgetItem(element_name)
+        ignore_item.setData(Qt.UserRole, element_name)  # Store clean name as data
+        self.ignore_elements_list.addItem(ignore_item)
         self._on_settings_changed()
 
     def _remove_ignore_element(self):
@@ -330,17 +352,25 @@ class RenderElementsWidget(QWidget):
             path_warnings = max_utils.validate_render_element_paths(render_elements)
             feedback_messages.extend(path_warnings)
 
-            # Validate ignore list
+            # Validate ignore list - use clean names without emojis
             ignore_names = []
             for i in range(self.ignore_elements_list.count()):
-                ignore_names.append(self.ignore_elements_list.item(i).text())
+                item = self.ignore_elements_list.item(i)
+                # Get clean name from item data, fallback to text without emojis
+                clean_name = item.data(Qt.UserRole)
+                if not clean_name:
+                    # Fallback: remove emojis from display text
+                    clean_name = self._remove_emojis(item.text())
+                ignore_names.append(clean_name)
 
             if ignore_names:
                 scene_element_names = [elem.get("name", "") for elem in render_elements]
                 invalid_names = [name for name in ignore_names if name not in scene_element_names]
 
                 for invalid_name in invalid_names:
-                    feedback_messages.append(f"Ignored element '{invalid_name}' not found in scene")
+                    # Use clean name in feedback message to avoid Unicode issues
+                    clean_invalid_name = self._remove_emojis(invalid_name)
+                    feedback_messages.append(f"Ignored element '{clean_invalid_name}' not found in scene")
 
         except Exception as e:
             _logger.error(f"Error validating render elements: {e}")
@@ -371,7 +401,8 @@ class RenderElementsWidget(QWidget):
             "vray_render_elements_vfb_control": self.vray_vfb_control_checkbox.isChecked(),
             "vray_split_buffer_support": self.vray_split_buffer_checkbox.isChecked(),
             "ignore_render_elements_by_name": [
-                self.ignore_elements_list.item(i).text()
+                self.ignore_elements_list.item(i).data(Qt.UserRole) or 
+                self._remove_emojis(self.ignore_elements_list.item(i).text())
                 for i in range(self.ignore_elements_list.count())
             ],
         }
@@ -393,10 +424,13 @@ class RenderElementsWidget(QWidget):
         self.vray_vfb_control_checkbox.setChecked(settings.vray_render_elements_vfb_control)
         self.vray_split_buffer_checkbox.setChecked(settings.vray_split_buffer_support)
 
-        # Update ignore list
+        # Update ignore list with clean names
         self.ignore_elements_list.clear()
         for name in settings.ignore_render_elements_by_name:
-            self.ignore_elements_list.addItem(name)
+            clean_name = self._remove_emojis(name)  # Ensure name is clean
+            ignore_item = QListWidgetItem(clean_name)
+            ignore_item.setData(Qt.UserRole, clean_name)  # Store clean name as data
+            self.ignore_elements_list.addItem(ignore_item)
 
     def update_data_class_from_settings(self, settings):
         """
