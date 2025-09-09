@@ -58,7 +58,7 @@ def get_render_elements() -> list:
                     str(element.elementName) if hasattr(element, "elementName") else f"Element_{i}"
                 ),
                 "type": str(rt.classof(element)),
-                "enabled": bool(re_manager.GetRenderElementEnabled(i)),
+                "enabled": bool(getattr(element, "enabled", True)),
                 "output_filename": "",
                 "has_output_path": False,
                 "vray_vfb": False,
@@ -554,7 +554,7 @@ def detect_missing_render_elements() -> list:
                     "index": i,
                     "name": f"Missing_Element_{i}",
                     "type": "Missing_Render_Element_Plug_in",
-                    "enabled": bool(re_manager.GetRenderElementEnabled(i)),
+                    "enabled": bool(getattr(element, "enabled", True)),
                     "original_class": getattr(element, "originalClassName", "Unknown"),
                 }
                 missing_elements.append(missing_info)

@@ -224,8 +224,17 @@ class RenderElementsWidget(QWidget):
         if not current_item:
             return
 
-        # Extract element name from display text
-        element_name = current_item.text().split(" - ")[0]
+        # Get the actual element name from stored item data
+        element_name = current_item.data(Qt.UserRole)
+        if not element_name:
+            # Fallback: extract from display text if data is not available
+            display_text = current_item.text()
+            if " - " in display_text:
+                name_part = display_text.split(" - ")[0]
+                # Remove the emoji (first character) and any leading/trailing spaces
+                element_name = name_part[1:].strip() if len(name_part) > 1 else name_part.strip()
+            else:
+                element_name = display_text[1:].strip() if len(display_text) > 1 else display_text.strip()
 
         # Check if already in ignore list
         for i in range(self.ignore_elements_list.count()):
@@ -288,6 +297,8 @@ class RenderElementsWidget(QWidget):
                 display_text = f"{status_icon} {name} - {element_type}{status_text}"
 
                 item = QListWidgetItem(display_text)
+                # Store the actual element name as item data for easy retrieval
+                item.setData(Qt.UserRole, name)
                 tooltip = (
                     f"Name: {name}\n"
                     f"Type: {element_type}\n"

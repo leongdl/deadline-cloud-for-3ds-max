@@ -164,7 +164,7 @@ def on_create_job_bundle_callback(
             state_set.frame_range = settings.frame_list
 
     # Add render element output directories to output_directories set
-    if settings.render_elements and not settings.ignore_render_elements:
+    if settings.render_elements and not settings.ignore_render_elements_by_name:
         try:
             render_element_dirs = max_utils.get_render_elements_output_directories()
             output_directories.update(render_element_dirs)
