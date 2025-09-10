@@ -95,7 +95,8 @@ class RenderElementManager:
             self._configure_vray_settings(data, render_elements)
 
             # Validate final configuration
-            validation_warnings = validate_render_element_configuration(data)
+            settings = self._convert_data_to_settings(data)
+            validation_warnings = validate_render_element_configuration(render_elements, settings)
             if validation_warnings:
                 for warning in validation_warnings:
                     self.logger.warning(f"Configuration validation: {warning}")
@@ -205,7 +206,8 @@ class RenderElementManager:
             render_elements = get_render_elements()
 
             # Validate configuration using shared utilities
-            validation_warnings = validate_render_element_configuration(data)
+            settings = self._convert_data_to_settings(data)
+            validation_warnings = validate_render_element_configuration(render_elements, settings)
 
             return {
                 "success": True,
@@ -249,3 +251,31 @@ class RenderElementManager:
         except Exception as e:
             self.logger.error(f"Failed to restore render elements: {e}")
             return {"success": False, "error": str(e)}
+
+    def _convert_data_to_settings(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert OpenJD data format to settings format expected by shared utilities.
+
+        Args:
+            data: OpenJD data dictionary
+
+        Returns:
+            Settings dictionary compatible with shared utilities
+        """
+        settings = {}
+
+        # Convert ignore render elements by name
+        ignore_names_str = data.get("IgnoreRenderElementsByName", "")
+        if ignore_names_str:
+            settings["ignore_render_elements_by_name"] = [
+                name.strip() for name in ignore_names_str.split(",") if name.strip()
+            ]
+        else:
+            settings["ignore_render_elements_by_name"] = []
+
+        # Convert boolean settings
+        settings["render_elements_update_paths"] = (
+            data.get("RenderElementsUpdatePaths", "true").lower() == "true"
+        )
+
+        return settings
