@@ -50,23 +50,23 @@ class RenderElementsWidget(QWidget):
     def _remove_emojis(self, text):
         """
         Remove status emoji characters from render element text to prevent Unicode encoding issues.
-        
+
         Specifically removes the status indicator emojis used in the render elements widget:
         - 🟢 (Green circle) = Enabled with output path
-        - 🟡 (Yellow circle) = Enabled without output path  
+        - 🟡 (Yellow circle) = Enabled without output path
         - 🔴 (Red circle) = Disabled
         - ❌ (Cross mark) = Error indicator
-        
+
         Args:
             text (str): Text that may contain status emoji characters
-            
+
         Returns:
             str: Text with status emojis removed and whitespace cleaned up
         """
         # Remove specific status emojis used in this widget
-        clean_text = text.replace('🟢', '').replace('🟡', '').replace('🔴', '').replace('❌', '')
+        clean_text = text.replace("🟢", "").replace("🟡", "").replace("🔴", "").replace("❌", "")
         # Clean up extra whitespace
-        return ' '.join(clean_text.split())
+        return " ".join(clean_text.split())
 
     def _build_render_elements_ui(self):
         """
@@ -257,7 +257,9 @@ class RenderElementsWidget(QWidget):
         # Check if already in ignore list (compare clean names)
         for i in range(self.ignore_elements_list.count()):
             existing_item = self.ignore_elements_list.item(i)
-            existing_name = existing_item.data(Qt.UserRole) or self._remove_emojis(existing_item.text())
+            existing_name = existing_item.data(Qt.UserRole) or self._remove_emojis(
+                existing_item.text()
+            )
             if existing_name == element_name:
                 return  # Already in list
 
@@ -370,7 +372,9 @@ class RenderElementsWidget(QWidget):
                 for invalid_name in invalid_names:
                     # Use clean name in feedback message to avoid Unicode issues
                     clean_invalid_name = self._remove_emojis(invalid_name)
-                    feedback_messages.append(f"Ignored element '{clean_invalid_name}' not found in scene")
+                    feedback_messages.append(
+                        f"Ignored element '{clean_invalid_name}' not found in scene"
+                    )
 
         except Exception as e:
             _logger.error(f"Error validating render elements: {e}")
@@ -401,8 +405,8 @@ class RenderElementsWidget(QWidget):
             "vray_render_elements_vfb_control": self.vray_vfb_control_checkbox.isChecked(),
             "vray_split_buffer_support": self.vray_split_buffer_checkbox.isChecked(),
             "ignore_render_elements_by_name": [
-                self.ignore_elements_list.item(i).data(Qt.UserRole) or 
-                self._remove_emojis(self.ignore_elements_list.item(i).text())
+                self.ignore_elements_list.item(i).data(Qt.UserRole)
+                or self._remove_emojis(self.ignore_elements_list.item(i).text())
                 for i in range(self.ignore_elements_list.count())
             ],
         }

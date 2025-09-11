@@ -382,6 +382,31 @@ def _create_step_definitions(
         ):
             init_data["data"] += "camera: '{{Param.Camera}}'\n"
 
+        # Add render element parameters to init data
+        render_element_params = [
+            "RenderElements",
+            "RenderElementsUpdatePaths",
+            "RenderElementsIncludeNameInPath",
+            "RenderElementsIncludeTypeInPath",
+            "RenderElementsIncludeNameInFilename",
+            "RenderElementsIncludeTypeInFilename",
+            "VRayRenderElementsVFBControl",
+            "VRaySplitBufferSupport",
+            "IgnoreRenderElementsByName",
+            "RenderElementOutputFilenames",
+        ]
+
+        for param in render_element_params:
+            # Convert parameter name to snake_case for init data
+            init_data_key = param.replace("VRay", "vray_").replace(
+                "RenderElements", "render_elements_"
+            )
+            # Convert camelCase to snake_case
+            import re
+
+            init_data_key = re.sub("([A-Z]+)", r"_\1", init_data_key).lower().lstrip("_")
+            init_data["data"] += f"{init_data_key}: '{{{{Param.{param}}}}}'\n"
+
     return job_template
 
 
