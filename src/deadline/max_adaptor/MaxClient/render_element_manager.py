@@ -59,6 +59,7 @@ class RenderElementManager:
         """
         try:
             self.logger.info("Starting render elements configuration")
+            self.logger.info(f"Received configuration data: {data}")
 
             # Get render element manager
             self.re_manager = rt.maxOps.GetCurRenderElementMgr()
@@ -71,6 +72,12 @@ class RenderElementManager:
                 self.logger.info("No render elements found in scene")
                 return {"success": True, "message": "No render elements to configure"}
 
+            self.logger.info(f"Found {len(render_elements)} render elements in scene:")
+            for i, element in enumerate(render_elements):
+                self.logger.info(
+                    f"  [{i}] {element.get('name', 'Unknown')} - Type: {element.get('type', 'Unknown')} - Enabled: {element.get('enabled', False)} - Output: {element.get('output_filename', 'None')}"
+                )
+
             # Store original state for restoration
             self.original_state = store_original_render_element_state(render_elements)
             self.logger.debug(f"Stored original state for {len(render_elements)} render elements")
@@ -79,6 +86,12 @@ class RenderElementManager:
             elements_enabled = data.get("RenderElements", "true").lower() == "true"
             self.logger.info(f"Setting render elements active: {elements_enabled}")
             self.re_manager.SetElementsActive(elements_enabled)
+
+            # Log all render element parameters received
+            self.logger.info("Render element configuration parameters:")
+            for key, value in data.items():
+                if key.lower().startswith(("render_element", "vray_", "ignore_render")):
+                    self.logger.info(f"  {key}: {value}")
 
             if not elements_enabled:
                 self.logger.info("Render elements disabled, skipping further configuration")
@@ -124,13 +137,19 @@ class RenderElementManager:
             ignore_names = [name.strip() for name in ignore_names_str.split(",") if name.strip()]
             self.logger.info(f"Ignoring render elements by name: {ignore_names}")
 
+            disabled_count = 0
             for element in render_elements:
                 element_name = element.get("name", "")
                 if element_name in ignore_names:
                     element_index = element.get("index", -1)
                     if element_index >= 0:
                         self.re_manager.SetRenderElementEnabled(element_index, False)
-                        self.logger.debug(f"Disabled render element: {element_name}")
+                        self.logger.info(
+                            f"DISABLED render element: '{element_name}' (index {element_index})"
+                        )
+                        disabled_count += 1
+
+            self.logger.info(f"Disabled {disabled_count} render elements based on ignore list")
 
     def _update_paths_and_filenames(
         self, data: Dict[str, Any], render_elements: List[Dict[str, Any]]
