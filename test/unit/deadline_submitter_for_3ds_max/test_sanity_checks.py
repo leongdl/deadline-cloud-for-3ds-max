@@ -161,7 +161,7 @@ class TestSanityChecks:
         mock_pymx_runtime: Mock,
         default_settings: RenderSubmitterUISettings,
     ) -> None:
-        """Test that V_Ray_6__update_2_1 renderer is accepted (splits by __ to V_Ray_6)"""
+        """Test that V_Ray_6__update_2_1 renderer is accepted (starts with V_Ray_6)"""
         mock_pymx_runtime.renderers.current = "V_Ray_6__update_2_1:V-Ray 6, update 2.1"
         mock_pymx_runtime.rendOutputFilename = ""
 
@@ -173,8 +173,20 @@ class TestSanityChecks:
         mock_pymx_runtime: Mock,
         default_settings: RenderSubmitterUISettings,
     ) -> None:
-        """Test that V_Ray_GPU_7_Hotfix_2 renderer is accepted (splits by _ to V_Ray_GPU_7)"""
+        """Test that V_Ray_GPU_7_Hotfix_2 renderer is accepted (starts with V_Ray_GPU_7)"""
         mock_pymx_runtime.renderers.current = "V_Ray_GPU_7_Hotfix_2:V-Ray GPU 7, Hotfix 2"
+        mock_pymx_runtime.rendOutputFilename = ""
+
+        # Should not raise an exception
+        check_sanity_specific_state_set(default_settings, "test_state_set")
+
+    def test_check_sanity_specific_state_set_vray_7_hotfix_renderer(
+        self,
+        mock_pymx_runtime: Mock,
+        default_settings: RenderSubmitterUISettings,
+    ) -> None:
+        """Test that V_Ray_7_Hotfix_2 renderer is accepted (starts with V_Ray_7)"""
+        mock_pymx_runtime.renderers.current = "V_Ray_7_Hotfix_2:V-Ray 7, Hotfix 2"
         mock_pymx_runtime.rendOutputFilename = ""
 
         # Should not raise an exception
