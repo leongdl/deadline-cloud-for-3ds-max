@@ -11,6 +11,27 @@ from pathlib import Path
 import pymxs  # separate import to initialize
 from pymxs import runtime as rt
 
+# Import shared render elements utilities to make them available through this module
+from deadline.max_shared.utilities.max_utils import (  # noqa: F401
+    get_render_elements,
+    validate_render_element_paths,
+    get_render_elements_output_directories,
+    purify_render_element_name,
+    get_render_element_by_name,
+    validate_render_element_configuration,
+    configure_render_element_paths,
+    configure_vray_render_elements,
+    store_original_render_element_state,
+    restore_original_render_element_state,
+    # Enhanced scene detection functions (Task 1.4)
+    detect_missing_render_elements,
+    validate_render_element_names,
+    resolve_duplicate_render_element_names,
+    preview_render_element_paths,
+    analyze_render_element_compatibility,
+    get_render_element_statistics,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -314,3 +335,13 @@ def get_state_set_names() -> list:
     for i in range(-1, master_state.Children.count - 2):
         state_sets.append([master_state.Children.Item[i].Name, i + 1])
     return state_sets
+
+
+# Render elements functions are now imported from shared utilities
+# See deadline.max_shared.utilities.max_utils for:
+# - get_render_elements()
+# - validate_render_element_paths()
+# - get_render_elements_output_directories()
+# - purify_render_element_name()
+# - get_render_element_by_name()
+# - validate_render_element_configuration()

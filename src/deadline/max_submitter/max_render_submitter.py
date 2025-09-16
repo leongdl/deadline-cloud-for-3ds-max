@@ -163,6 +163,20 @@ def on_create_job_bundle_callback(
         for state_set in state_sets_to_submit:
             state_set.frame_range = settings.frame_list
 
+    # Add render element output directories to output_directories set
+    if settings.render_elements and not settings.ignore_render_elements_by_name:
+        try:
+            render_element_dirs = max_utils.get_render_elements_output_directories()
+            output_directories.update(render_element_dirs)
+            _logger.debug(f"Added render element output directories: {render_element_dirs}")
+
+            # Update state sets with render element directories
+            for state_set in state_sets_to_submit:
+                state_set.output_directories.update(render_element_dirs)
+
+        except Exception as e:
+            _logger.warning(f"Failed to get render element output directories: {e}")
+
     # Only do these actions when we want to submit a scene
     if purpose == JobBundlePurpose.SUBMISSION:
         # Make a backup of the current state of the scene
@@ -274,6 +288,18 @@ def show_job_bundle_submitter():
             output = os.path.split(rt.rendOutputFilename)
             output_directories.update([output[0]])
     output_directories.update([render_settings.output_path])
+
+    # Add render element output directories if render elements are enabled
+    try:
+        render_element_dirs = max_utils.get_render_elements_output_directories()
+        if render_element_dirs:
+            output_directories.update(render_element_dirs)
+            _logger.debug(
+                f"Added render element output directories to initial setup: {render_element_dirs}"
+            )
+    except Exception as e:
+        _logger.debug(f"Could not get render element output directories during initialization: {e}")
+
     render_settings.output_directories = output_directories
 
     # Fill in the auto-detected input files

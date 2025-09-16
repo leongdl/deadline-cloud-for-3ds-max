@@ -67,3 +67,73 @@ class TestDefaultMaxHandler:
         captured_result = capsys.readouterr()
         assert test_message_3dsmaxbatch not in captured_result.out
         mock_rt.logsystem.logEntry.assert_called_once_with(test_message_3dsmaxbatch, broadcast=True)
+
+    def test_set_client(self, maxhandlerbase: DefaultMaxHandler):
+        """Tests that setting the client reference works correctly"""
+        # GIVEN
+        mock_client = Mock()
+
+        # WHEN
+        maxhandlerbase.set_client(mock_client)
+
+        # THEN
+        assert maxhandlerbase.client == mock_client
+
+    def test_configure_render_elements_no_client(self, maxhandlerbase: DefaultMaxHandler):
+        """Tests that configure_render_elements handles missing client gracefully"""
+        # GIVEN
+        data = {"RenderElements": "true"}
+
+        # WHEN/THEN - Should not raise exception
+        maxhandlerbase.configure_render_elements(data)
+
+    def test_configure_render_elements_with_client(self, maxhandlerbase: DefaultMaxHandler):
+        """Tests that configure_render_elements calls client method correctly"""
+        # GIVEN
+        mock_client = Mock()
+        mock_client.configure_render_elements.return_value = {"success": True}
+        maxhandlerbase.set_client(mock_client)
+        data = {"RenderElements": "true"}
+
+        # WHEN
+        maxhandlerbase.configure_render_elements(data)
+
+        # THEN
+        mock_client.configure_render_elements.assert_called_once_with(data)
+
+    def test_configure_render_elements_failure(self, maxhandlerbase: DefaultMaxHandler):
+        """Tests that configure_render_elements handles client failure correctly"""
+        # GIVEN
+        mock_client = Mock()
+        mock_client.configure_render_elements.return_value = {
+            "success": False,
+            "error": "Test error",
+        }
+        maxhandlerbase.set_client(mock_client)
+        data = {"RenderElements": "true"}
+
+        # WHEN/THEN
+        with pytest.raises(RuntimeError, match="Render elements configuration failed: Test error"):
+            maxhandlerbase.configure_render_elements(data)
+
+    def test_cleanup_render_elements_no_client(self, maxhandlerbase: DefaultMaxHandler):
+        """Tests that cleanup_render_elements handles missing client gracefully"""
+        # GIVEN
+        data = {"RenderElements": "true"}
+
+        # WHEN/THEN - Should not raise exception
+        maxhandlerbase.cleanup_render_elements(data)
+
+    def test_cleanup_render_elements_with_client(self, maxhandlerbase: DefaultMaxHandler):
+        """Tests that cleanup_render_elements calls client method correctly"""
+        # GIVEN
+        mock_client = Mock()
+        mock_client.restore_render_elements.return_value = {"success": True}
+        maxhandlerbase.set_client(mock_client)
+        data = {"RenderElements": "true"}
+
+        # WHEN
+        maxhandlerbase.cleanup_render_elements(data)
+
+        # THEN
+        mock_client.restore_render_elements.assert_called_once_with(data)
