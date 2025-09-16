@@ -34,12 +34,18 @@ class DefaultMaxHandler:
             "output_file_format": self.set_output_file_format,
             "state_set": self.set_state_set,
             "scene_file": self.set_scene_file,
+            # Render elements integration actions
+            "configure_render_elements": self.configure_render_elements,
+            "setup_render_elements": self.setup_render_elements,
+            "cleanup_render_elements": self.cleanup_render_elements,
         }
         self.camera_node = None
         self.output_dir = None
         self.output_name = None
         self.output_format = None
         self._executable_handler: MaxExecutableHandler = MaxExecutableHandler()
+        # Reference to the client for render elements actions
+        self.client = None
 
     def start_render(self, data: dict) -> None:
         """
@@ -68,43 +74,62 @@ class DefaultMaxHandler:
                 "format is missing."
             )
 
-        # Set the frame to render
-        rt.rendTimeType = 1  # Set to single frame
-        rt.sliderTime = frame
+        # Configure render elements before rendering if enabled
+        render_elements_configured = False
+        if data.get("RenderElements", "true").lower() == "true":
+            try:
+                self.setup_render_elements(data)
+                render_elements_configured = True
+            except Exception as e:
+                self.log_to_console(f"Warning: Render elements setup failed: {e}")
+                # Continue with rendering even if render elements setup fails
 
-        output_name = ""
-        camera = data.get("camera")
-        if camera is not None:
-            logger.debug("Setting camera with run data")
-            camera = self.get_camera_to_render(camera)
-            self.camera_node = rt.getNodeByName(camera)
-            # If camera gets set by run data, add the camera to the output name
-            output_name = self.output_name + "_" + camera
+        try:
+            # Set the frame to render
+            rt.rendTimeType = 1  # Set to single frame
+            rt.sliderTime = frame
 
-        # Since camera can be set by both init and run data, this isn't a required parameter in either schema.
-        if self.camera_node is None:
-            self.log_to_console("Error: MaxClient: start_render called without a camera.")
-            raise RuntimeError("MaxClient: start_render called without a camera.")
+            output_name = ""
+            camera = data.get("camera")
+            if camera is not None:
+                logger.debug("Setting camera with run data")
+                camera = self.get_camera_to_render(camera)
+                self.camera_node = rt.getNodeByName(camera)
+                # If camera gets set by run data, add the camera to the output name
+                output_name = self.output_name + "_" + camera
 
-        # Create output path to pass along with render
-        if not output_name:
-            output_name = self.reformat_framenumber_padding(self.output_name, frame)
-        else:
-            output_name = self.reformat_framenumber_padding(output_name, frame)
-        output_file = output_name + self.output_format
-        output_path = os.path.join(self.output_dir, output_file)
+            # Since camera can be set by both init and run data, this isn't a required parameter in either schema.
+            if self.camera_node is None:
+                self.log_to_console("Error: MaxClient: start_render called without a camera.")
+                raise RuntimeError("MaxClient: start_render called without a camera.")
 
-        # Create the folder(s) if the directory doesn't exist
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+            # Create output path to pass along with render
+            if not output_name:
+                output_name = self.reformat_framenumber_padding(self.output_name, frame)
+            else:
+                output_name = self.reformat_framenumber_padding(output_name, frame)
+            output_file = output_name + self.output_format
+            output_path = os.path.join(self.output_dir, output_file)
 
-        # Not sure if needed?
-        if os.path.exists(output_path):
-            os.remove(output_path)
+            # Create the folder(s) if the directory doesn't exist
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir)
 
-        rt.render(camera=self.camera_node, outputFile=output_path)
+            # Not sure if needed?
+            if os.path.exists(output_path):
+                os.remove(output_path)
 
-        self.log_to_console(f"MaxClient: Finished Rendering Frame {frame}")
+            rt.render(camera=self.camera_node, outputFile=output_path)
+
+            self.log_to_console(f"MaxClient: Finished Rendering Frame {frame}")
+
+        finally:
+            # Restore render elements after rendering if they were configured
+            if render_elements_configured:
+                try:
+                    self.cleanup_render_elements(data)
+                except Exception as e:
+                    self.log_to_console(f"Warning: Render elements cleanup failed: {e}")
 
     def reformat_framenumber_padding(self, name: str, number: int) -> str:
         """
@@ -287,3 +312,71 @@ class DefaultMaxHandler:
             rt.logsystem.logEntry(message, broadcast=True)
         else:
             print(message, flush=True)
+
+    def set_client(self, client) -> None:
+        """
+        Sets the client reference for render elements actions.
+
+        :param client: The MaxClient instance
+        """
+        self.client = client
+
+    def configure_render_elements(self, data: dict) -> None:
+        """
+        Configure render elements using the client's render element manager.
+
+        :param data: The data containing render elements configuration
+        :raises: RuntimeError if configuration fails
+        """
+        if not self.client:
+            self.log_to_console(
+                "Warning: No client reference available for render elements configuration"
+            )
+            return
+
+        try:
+            result = self.client.configure_render_elements(data)
+            if not result.get("success"):
+                raise RuntimeError(f"Render elements configuration failed: {result.get('error')}")
+        except Exception as e:
+            self.log_to_console(f"Error configuring render elements: {e}")
+            raise RuntimeError(f"Render elements configuration failed: {e}")
+
+    def setup_render_elements(self, data: dict) -> None:
+        """
+        Setup render elements before frame rendering begins.
+
+        :param data: The data containing render elements configuration
+        :raises: RuntimeError if setup fails
+        """
+        try:
+            self.log_to_console("Setting up render elements for frame rendering")
+            self.configure_render_elements(data)
+            self.log_to_console("Render elements setup completed successfully")
+        except Exception as e:
+            self.log_to_console(f"Error setting up render elements: {e}")
+            raise RuntimeError(f"Render elements setup failed: {e}")
+
+    def cleanup_render_elements(self, data: dict) -> None:
+        """
+        Cleanup render elements after rendering completes.
+
+        :param data: The data containing render elements configuration
+        """
+        if not self.client:
+            self.log_to_console(
+                "Warning: No client reference available for render elements cleanup"
+            )
+            return
+
+        try:
+            self.log_to_console("Cleaning up render elements after rendering")
+            result = self.client.restore_render_elements(data)
+            if result.get("success"):
+                self.log_to_console("Render elements cleanup completed successfully")
+            else:
+                self.log_to_console(
+                    f"Warning: Render elements cleanup had issues: {result.get('error', 'Unknown error')}"
+                )
+        except Exception as e:
+            self.log_to_console(f"Warning: Error during render elements cleanup: {e}")

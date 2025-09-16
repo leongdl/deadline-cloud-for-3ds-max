@@ -3,7 +3,51 @@
     "type": "object",
     "properties": {
         "frame": { "type": "number" },
-        "camera": { "type":  "string" }
+        "camera": { "type": "string" },
+        "RenderElements": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "description": "Enable or disable render elements output"
+        },
+        "RenderElementsUpdatePaths": {
+            "type": "string", 
+            "enum": ["true", "false"],
+            "description": "Update render element paths automatically"
+        },
+        "RenderElementsIncludeNameInPath": {
+            "type": "string",
+            "enum": ["true", "false"], 
+            "description": "Include render element name in output path"
+        },
+        "RenderElementsIncludeTypeInPath": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "description": "Include render element type in output path"
+        },
+        "RenderElementsIncludeNameInFilename": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "description": "Include render element name in output filename"
+        },
+        "RenderElementsIncludeTypeInFilename": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "description": "Include render element type in output filename"
+        },
+        "VRayRenderElementsVFBControl": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "description": "Control V-Ray VFB settings for render elements"
+        },
+        "VRaySplitBufferSupport": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "description": "Enable V-Ray split buffer support for render elements"
+        },
+        "IgnoreRenderElementsByName": {
+            "type": "string",
+            "description": "Comma-separated list of render element names to ignore during rendering"
+        }
     },
     "required": ["frame"]
 }
