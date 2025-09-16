@@ -202,29 +202,8 @@ class RenderSubmitterUISettings:
         :returns: list of invalid or inaccessible paths
         :return_type: list[str]
         """
-        invalid_paths = []
-        if not self.render_element_output_filenames:
-            return invalid_paths
-
-        for path in self.render_element_output_filenames:
-            if not path:  # Empty path
-                continue
-
-            try:
-                path_obj = Path(path)
-                # Check if parent directory exists or can be created
-                parent_dir = path_obj.parent
-                if not parent_dir.exists():
-                    try:
-                        parent_dir.mkdir(parents=True, exist_ok=True)
-                    except (OSError, PermissionError):
-                        invalid_paths.append(path)
-                elif not parent_dir.is_dir():
-                    invalid_paths.append(path)
-            except (OSError, ValueError):
-                invalid_paths.append(path)
-
-        return invalid_paths
+        # No validation needed for render element output filenames currently
+        return []
 
     def validate_render_element_configuration(self) -> list[str]:
         """

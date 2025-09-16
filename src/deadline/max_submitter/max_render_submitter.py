@@ -177,18 +177,6 @@ def on_create_job_bundle_callback(
         except Exception as e:
             _logger.warning(f"Failed to get render element output directories: {e}")
 
-    # Validate render element output paths are accessible
-    if settings.render_elements and settings.render_element_output_filenames:
-        try:
-            render_elements = max_utils.get_render_elements()
-            path_warnings = max_utils.validate_render_element_paths(render_elements)
-            if path_warnings:
-                _logger.warning("Render element path validation warnings:")
-                for warning in path_warnings:
-                    _logger.warning(f"  - {warning}")
-        except Exception as e:
-            _logger.warning(f"Failed to validate render element paths: {e}")
-
     # Only do these actions when we want to submit a scene
     if purpose == JobBundlePurpose.SUBMISSION:
         # Make a backup of the current state of the scene

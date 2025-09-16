@@ -258,21 +258,6 @@ def _create_param_definitions(
                 }
             )
 
-        # RenderElementOutputFilenames parameter - output filenames for each render element
-        if any(elem.get("output_filename") for elem in render_elements):
-            job_template["parameterDefinitions"].append(
-                {
-                    "name": "RenderElementOutputFilenames",
-                    "type": "STRING",
-                    "userInterface": {
-                        "control": "HIDDEN",
-                        "groupLabel": "Render Elements",
-                    },
-                    "description": "Output filenames for each render element (managed automatically).",
-                    "default": "",
-                }
-            )
-
     return job_template
 
 
@@ -393,7 +378,6 @@ def _create_step_definitions(
             "VRayRenderElementsVFBControl",
             "VRaySplitBufferSupport",
             "IgnoreRenderElementsByName",
-            "RenderElementOutputFilenames",
         ]
 
         for param in render_element_params:
@@ -629,17 +613,6 @@ def _get_job_parameters(
             # Add empty parameter if render elements exist but none are ignored
             parameter_values.append({"name": "IgnoreRenderElementsByName", "value": ""})
 
-        # RenderElementOutputFilenames parameter
-        if settings.render_element_output_filenames:
-            # Convert list to comma-separated string for OpenJD
-            output_filenames_str = ",".join(settings.render_element_output_filenames)
-            parameter_values.append(
-                {"name": "RenderElementOutputFilenames", "value": output_filenames_str}
-            )
-        elif any(elem.get("output_filename") for elem in render_elements):
-            # Add empty parameter if render elements exist but no output filenames
-            parameter_values.append({"name": "RenderElementOutputFilenames", "value": ""})
-
     return parameter_values
 
 
@@ -722,27 +695,6 @@ def _validate_render_elements_parameters(settings: RenderSubmitterUISettings) ->
 
             _logger = logging.getLogger(__name__)
             _logger.warning(f"Could not validate render element names: {e}")
-
-    # Basic validation for render element output filenames
-    if settings.render_element_output_filenames:
-        try:
-            # Basic path validation - check if paths are not empty
-            invalid_paths = [
-                path for path in settings.render_element_output_filenames if not path.strip()
-            ]
-
-            if invalid_paths:
-                import logging
-
-                _logger = logging.getLogger(__name__)
-                _logger.warning("Some render element output paths are empty or invalid")
-
-        except Exception as e:
-            # If validation fails, log warning but don't fail submission
-            import logging
-
-            _logger = logging.getLogger(__name__)
-            _logger.warning(f"Could not validate render element paths: {e}")
 
 
 def _check_multiples(state_sets: list[StateSetData], type_: str) -> bool:

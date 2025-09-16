@@ -562,16 +562,8 @@ class SceneSettingsWidget(QWidget):
         self.render_elements_widget.update_data_class_from_settings(settings)
 
         # Update render element output filenames from detected elements
-        try:
-            render_elements = max_utils.get_render_elements()
-            output_filenames = []
-            for element in render_elements:
-                if element.get("enabled", True) and element.get("output_filename"):
-                    output_filenames.append(element["output_filename"])
-            settings.render_element_output_filenames = output_filenames
-        except Exception as e:
-            _logger.error(f"Error updating render element output filenames: {e}")
-            settings.render_element_output_filenames = []
+        # Keep render_element_output_filenames empty for now
+        settings.render_element_output_filenames = []
 
     def activate_frame_override_changed(self, state):
         """

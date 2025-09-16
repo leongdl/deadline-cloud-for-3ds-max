@@ -47,10 +47,6 @@
         "IgnoreRenderElementsByName": {
             "type": "string",
             "description": "Comma-separated list of render element names to ignore during rendering"
-        },
-        "RenderElementOutputFilenames": {
-            "type": "string",
-            "description": "Output filenames for each render element (managed automatically)"
         }
     },
     "required": ["frame"]
