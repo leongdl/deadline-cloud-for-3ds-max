@@ -673,6 +673,70 @@ def _configure_render_element_states(
         _logger.info(f"Disabled V-Ray VFB on {disabled_vfb_count} render elements")
 
 
+def _configure_per_element_settings(
+    render_elements: list[RenderElementInfo],
+    vfb_control: bool,
+    ignore_list: list[str],
+    warnings: list[str],
+) -> None:
+    """
+    Configure per-element settings for render elements.
+
+    This function handles enabling/disabling render elements based on VFB control
+    and ignore list, and sets the vrayVFB property on each element.
+
+    :param render_elements: list of RenderElementInfo objects
+    :param vfb_control: whether VFB control is enabled
+    :param ignore_list: list of render element names to ignore
+    :param warnings: list to append warning messages to
+    """
+    enabled_count = 0
+    disabled_count = 0
+
+    for element in render_elements:
+        element_obj = element.element_object
+        if not element_obj:
+            continue
+
+        element_name: str = element.name
+        should_ignore = element_name in ignore_list
+
+        # Skip Missing_Render_Element_Plug_in
+        element_type = str(rt.classof(element_obj))
+        if element_type == "Missing_Render_Element_Plug_in":
+            continue
+
+        # Automatically enable/disable render elements based on VFB control and ignore list
+        if vfb_control:
+            try:
+                if should_ignore:
+                    element_obj.enabled = False
+                    element.enabled = False
+                    disabled_count += 1
+                    _logger.info(f"Disabled render element (ignored): {element_name}")
+                else:
+                    element_obj.enabled = True
+                    element.enabled = True
+                    enabled_count += 1
+                    _logger.debug(f"Enabled render element: {element_name}")
+            except Exception as e:
+                warnings.append(f"Failed to set enabled state for '{element_name}': {e}")
+
+        # Configure V-Ray VFB control per element
+        if hasattr(element_obj, "vrayVFB"):
+            try:
+                # Set vrayVFB based on vfb_control setting
+                element_obj.vrayVFB = not vfb_control
+                _logger.debug(f"Set V-Ray VFB for '{element_name}': {not vfb_control}")
+            except Exception as e:
+                warnings.append(f"Failed to configure V-Ray VFB for '{element_name}': {e}")
+
+    if vfb_control:
+        _logger.info(
+            f"V-Ray VFB Control: Enabled {enabled_count} render elements, disabled {disabled_count}"
+        )
+
+
 def configure_vray_render_elements(
     render_elements: list[RenderElementInfo],
     settings: VRayRenderElementSettings,
@@ -741,52 +805,9 @@ def configure_vray_render_elements(
             )
 
         # Configure per-element settings
-        # Configure per-element settings
-        enabled_count = 0
-        disabled_count = 0
-
-        for element in render_elements:
-            element_obj = element.element_object
-            if not element_obj:
-                continue
-
-            element_name: str = element.name
-            should_ignore = element_name in ignore_list
-
-            # Skip Missing_Render_Element_Plug_in
-            element_type = str(rt.classof(element_obj))
-            if element_type == "Missing_Render_Element_Plug_in":
-                continue
-
-            # Automatically enable/disable render elements based on VFB control and ignore list
-            if vfb_control:
-                try:
-                    if should_ignore:
-                        element_obj.enabled = False
-                        element.enabled = False
-                        disabled_count += 1
-                        _logger.info(f"Disabled render element (ignored): {element_name}")
-                    else:
-                        element_obj.enabled = True
-                        element.enabled = True
-                        enabled_count += 1
-                        _logger.debug(f"Enabled render element: {element_name}")
-                except Exception as e:
-                    warnings.append(f"Failed to set enabled state for '{element_name}': {e}")
-
-            # Configure V-Ray VFB control per element
-            if hasattr(element_obj, "vrayVFB"):
-                try:
-                    # Set vrayVFB based on vfb_control setting
-                    element_obj.vrayVFB = not vfb_control
-                    _logger.debug(f"Set V-Ray VFB for '{element_name}': {not vfb_control}")
-                except Exception as e:
-                    warnings.append(f"Failed to configure V-Ray VFB for '{element_name}': {e}")
-
-        if vfb_control:
-            _logger.info(
-                f"V-Ray VFB Control: Enabled {enabled_count} render elements, disabled {disabled_count}"
-            )
+        _configure_per_element_settings(
+            render_elements, vfb_control, ignore_list, warnings
+        )
 
     except Exception as e:
         _logger.error(f"Error configuring V-Ray render elements: {e}")
