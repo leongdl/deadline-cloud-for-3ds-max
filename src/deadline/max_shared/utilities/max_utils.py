@@ -612,11 +612,11 @@ def _configure_render_element_filenames(
 
         # D10: Enable render element output via SetElementsActive(True)
         # This is CRITICAL - without this, render elements won't be saved to files
-        try:
-            re_manager.SetElementsActive(True)
-            _logger.info("Render element manager: SetElementsActive(True)")
-        except Exception as e:
-            _logger.warning(f"Could not call SetElementsActive: {e}")
+        #try:
+        #    re_manager.SetElementsActive(True)
+        #    _logger.info("Render element manager: SetElementsActive(True)")
+        #except Exception as e:
+        #    _logger.warning(f"Could not call SetElementsActive: {e}")
 
         _logger.info(f"Set filenames for {filename_set_count} render elements")
     except Exception as e:
@@ -734,65 +734,11 @@ def configure_vray_render_elements(
                 output_path, output_name, output_file_format, warnings
             )
 
-        # Configure split buffer filenames - set same base filename for all render elements
+        # Configure render element filenames
         if split_buffer:
-            try:
-                re_manager = rt.maxOps.GetCurRenderElementMgr()
-                if re_manager and output_path and output_name:
-                    # Prepare base filename with format extension
-                    base_name, _ = os.path.splitext(output_name)
-                    assert (
-                        output_file_format is not None
-                    )  # Should never be None due to default value
-                    extension = (
-                        output_file_format
-                        if output_file_format.startswith(".")
-                        else f".{output_file_format}"
-                    )
-                    filename_with_format = f"{base_name}{extension}"
-                    base_filename = os.path.join(output_path, filename_with_format)
-
-                    # D10 pattern: Set UNIQUE filename per render element
-                    # Appends element name to base filename: basename_elementname.ext
-                    # D10 sets filenames for ALL elements, not just enabled ones
-                    filename_set_count = 0
-                    for element in render_elements:
-                        if element.name not in ignore_list:
-                            try:
-                                # Create unique filename per element
-                                purified_name = purify_render_element_name(element.name)
-                                unique_filename = f"{base_name}_{purified_name}{extension}"
-                                unique_filepath = os.path.join(output_path, unique_filename)
-                                re_manager.SetRenderElementFilename(element.index, unique_filepath)
-                                filename_set_count += 1
-                                _logger.debug(
-                                    f"Set V-Ray split buffer filename for '{element.name}': {unique_filepath}"
-                                )
-                            except Exception as e:
-                                warnings.append(
-                                    f"Failed to set split buffer filename for '{element.name}': {e}"
-                                )
-
-                    #try:
-                    #    re_manager.SetElementsActive(True)
-                    #    _logger.info("Render element manager: SetElementsActive(True)")
-                    #except Exception as e:
-                    #    _logger.warning(f"Could not call SetElementsActive: {e}")
-
-                    _logger.info(
-                        f"V-Ray split buffer: Set unique filename for {filename_set_count} render elements"
-                    )
-                else:
-                    if not re_manager:
-                        warnings.append(
-                            "V-Ray split buffer filename setup failed: No render element manager"
-                        )
-                    if not (output_path and output_name):
-                        warnings.append(
-                            "V-Ray split buffer filename setup skipped: Missing output path or name"
-                        )
-            except Exception as e:
-                warnings.append(f"Failed to configure V-Ray split buffer filenames: {e}")
+            _configure_render_element_filenames(
+                render_elements, base_filepath, ignore_list, warnings
+            )
 
         # Configure per-element settings
         # Configure per-element settings
