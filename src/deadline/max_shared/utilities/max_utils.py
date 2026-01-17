@@ -794,16 +794,21 @@ def configure_vray_render_elements(
                     filename_with_format = f"{base_name}{extension}"
                     base_filename = os.path.join(output_path, filename_with_format)
 
-                    # Set the SAME base filename for ALL enabled render elements
-                    # V-Ray VFB will automatically append layer names during rendering
+                    # D10 pattern: Set UNIQUE filename per render element
+                    # Appends element name to base filename: basename_elementname.ext
+                    # D10 sets filenames for ALL elements, not just enabled ones
                     filename_set_count = 0
                     for element in render_elements:
-                        if element.enabled and element.name not in ignore_list:
+                        if element.name not in ignore_list:
                             try:
-                                re_manager.SetRenderElementFilename(element.index, base_filename)
+                                # Create unique filename per element
+                                purified_name = purify_render_element_name(element.name)
+                                unique_filename = f"{base_name}_{purified_name}{extension}"
+                                unique_filepath = os.path.join(output_path, unique_filename)
+                                re_manager.SetRenderElementFilename(element.index, unique_filepath)
                                 filename_set_count += 1
                                 _logger.debug(
-                                    f"Set V-Ray split buffer base filename for '{element.name}': {base_filename}"
+                                    f"Set V-Ray split buffer filename for '{element.name}': {unique_filepath}"
                                 )
                             except Exception as e:
                                 warnings.append(
@@ -811,7 +816,7 @@ def configure_vray_render_elements(
                                 )
 
                     _logger.info(
-                        f"V-Ray split buffer: Set base filename for {filename_set_count} render elements"
+                        f"V-Ray split buffer: Set unique filename for {filename_set_count} render elements"
                     )
                 else:
                     if not re_manager:
