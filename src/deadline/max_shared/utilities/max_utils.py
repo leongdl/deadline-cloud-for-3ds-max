@@ -728,53 +728,11 @@ def configure_vray_render_elements(
             )
 
         # Configure split buffer if enabled
+        base_filepath: Optional[str] = None
         if split_buffer:
-            try:
-                # Enable split buffer
-                _set_vray_property("output_splitgbuffer", True, warnings)
-
-                # Set the base filename for split files (critical for split buffer to work)
-                if output_path and output_name:
-                    # Prepare base filename with format extension
-                    base_name, _ = os.path.splitext(output_name)
-                    assert (
-                        output_file_format is not None
-                    )  # Should never be None due to default value
-                    extension = (
-                        output_file_format
-                        if output_file_format.startswith(".")
-                        else f".{output_file_format}"
-                    )
-                    filename_with_format = f"{base_name}{extension}"
-                    base_filepath = os.path.join(output_path, filename_with_format)
-                    _set_vray_property("output_splitfilename", base_filepath, warnings)
-                    _logger.info(f"V-Ray split buffer filename set to: {base_filepath}")
-                else:
-                    missing_params = []
-                    if not output_path:
-                        missing_params.append("output_file_path")
-                    if not output_name:
-                        missing_params.append("output_file_name (check template has this defined)")
-                    warnings.append(
-                        f"Split buffer enabled but missing: {', '.join(missing_params)} - split files may not save correctly"
-                    )
-
-                # Enable split RGB and Alpha
-                _set_vray_property("output_splitRGB", True, warnings)
-                _set_vray_property("output_splitAlpha", True, warnings)
-
-                # Set output_splitbitmap to enable render elements to inherit the output path
-                # This is required for V-Ray render elements (like LightMix) to save correctly
-                # The bitmap needs to be created with the split filename
-                if output_path and output_name:
-                    # Create a bitmap for the split output
-                    split_bitmap = rt.bitmap(1, 1, filename=base_filepath)
-                    _set_vray_property("output_splitbitmap", split_bitmap, warnings)
-                    _logger.info(f"V-Ray output_splitbitmap set to: {base_filepath}")
-
-                _logger.info("V-Ray split buffer configured")
-            except Exception as e:
-                warnings.append(f"Failed to configure V-Ray split buffer: {e}")
+            base_filepath = _configure_split_buffer_settings(
+                output_path, output_name, output_file_format, warnings
+            )
 
         # Configure split buffer filenames - set same base filename for all render elements
         if split_buffer:
