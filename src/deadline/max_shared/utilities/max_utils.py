@@ -135,6 +135,38 @@ def _get_vray_rt_settings() -> Optional[Any]:
     return None
 
 
+def _set_vray_property(prop_name: str, value: Any, warnings: list[str]) -> None:
+    """
+    Set a V-Ray property on the appropriate renderer object.
+
+    V-Ray CPU and GPU have different property access patterns:
+    - V-Ray GPU: Properties must be set on vray_rt_settings (nested V_Ray_settings object)
+    - V-Ray CPU: Properties must be set on rt.renderers.current directly
+
+    This function automatically detects the renderer type and sets properties
+    on the correct object, avoiding MAXScript errors from setting on the wrong object.
+
+    :param prop_name: name of the V-Ray property to set
+    :param value: value to set for the property
+    :param warnings: list to append warning messages to
+    """
+    vray_rt_settings = _get_vray_rt_settings()
+
+    try:
+        if vray_rt_settings is not None:
+            # V-Ray GPU - set on vray_rt_settings only
+            setattr(vray_rt_settings, prop_name, value)
+            _logger.debug(f"[_set_vray_property] Set vray_rt_settings.{prop_name} = {value}")
+        else:
+            # V-Ray CPU - set on rt.renderers.current
+            setattr(rt.renderers.current, prop_name, value)
+            _logger.debug(f"[_set_vray_property] Set rt.renderers.current.{prop_name} = {value}")
+    except Exception as e:
+        warning_msg = f"Failed to set V-Ray property {prop_name}: {e}"
+        _logger.warning(f"[_set_vray_property] {warning_msg}")
+        warnings.append(warning_msg)
+
+
 def get_render_elements() -> list[RenderElementInfo]:
     """
     Gets all render elements present in the max scene with their properties.
@@ -498,26 +530,16 @@ def configure_vray_render_elements(
     try:
         # Configure global V-Ray VFB control if enabled
         if vfb_control:
-            try:
-                # Always set for standard V-Ray
-                rt.renderers.current.output_on = False
-
-                # Also set for V-Ray RT if applicable
-                vray_rt_settings: Optional[Any] = _get_vray_rt_settings()
-                if vray_rt_settings is not None:
-                    vray_rt_settings.output_on = False
-
-                _logger.info(
-                    "Disabled V-Ray VFB (output_on = False) - render elements will use 3ds Max framebuffer"
-                )
-            except Exception as e:
-                warnings.append(f"Failed to configure global V-Ray VFB control: {e}")
+            _set_vray_property("output_on", False, warnings)
+            _logger.info(
+                "Disabled V-Ray VFB (output_on = False) - render elements will use 3ds Max framebuffer"
+            )
 
         # Configure split buffer if enabled
         if split_buffer:
             try:
-                # Always set for standard V-Ray
-                rt.renderers.current.output_splitgbuffer = True
+                # Enable split buffer
+                _set_vray_property("output_splitgbuffer", True, warnings)
 
                 # Set the base filename for split files (critical for split buffer to work)
                 if output_path and output_name:
@@ -533,7 +555,7 @@ def configure_vray_render_elements(
                     )
                     filename_with_format = f"{base_name}{extension}"
                     base_filepath = os.path.join(output_path, filename_with_format)
-                    rt.renderers.current.output_splitfilename = base_filepath
+                    _set_vray_property("output_splitfilename", base_filepath, warnings)
                     _logger.info(f"V-Ray split buffer filename set to: {base_filepath}")
                 else:
                     missing_params = []
@@ -545,9 +567,9 @@ def configure_vray_render_elements(
                         f"Split buffer enabled but missing: {', '.join(missing_params)} - split files may not save correctly"
                     )
 
-                # Always set for standard V-Ray
-                rt.renderers.current.output_splitRGB = True
-                rt.renderers.current.output_splitAlpha = True
+                # Enable split RGB and Alpha
+                _set_vray_property("output_splitRGB", True, warnings)
+                _set_vray_property("output_splitAlpha", True, warnings)
 
                 # Set output_splitbitmap to enable render elements to inherit the output path
                 # This is required for V-Ray render elements (like LightMix) to save correctly
@@ -560,22 +582,6 @@ def configure_vray_render_elements(
                         _logger.info(f"V-Ray output_splitbitmap set to: {base_filepath}")
                 except Exception as bitmap_e:
                     _logger.warning(f"Could not set output_splitbitmap: {bitmap_e}")
-
-                # Also set for V-Ray RT if applicable
-                vray_rt_split_settings: Optional[Any] = _get_vray_rt_settings()
-                if vray_rt_split_settings is not None:
-                    vray_rt_split_settings.output_splitgbuffer = True
-                    vray_rt_split_settings.output_splitRGB = True
-                    vray_rt_split_settings.output_splitAlpha = True
-                    # Set output_splitbitmap for V-Ray RT as well
-                    try:
-                        if output_path and output_name:
-                            split_bitmap_rt = rt.bitmap(1, 1, filename=base_filepath)
-                            vray_rt_split_settings.output_splitbitmap = split_bitmap_rt
-                    except Exception as bitmap_rt_e:
-                        _logger.warning(
-                            f"Could not set output_splitbitmap for V-Ray RT: {bitmap_rt_e}"
-                        )
 
                 _logger.info("V-Ray split buffer configured")
             except Exception as e:
