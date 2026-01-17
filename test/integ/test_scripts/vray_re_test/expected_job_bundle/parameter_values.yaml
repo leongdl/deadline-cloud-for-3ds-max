@@ -28,7 +28,7 @@ parameterValues:
 - name: RenderElementsIncludeTypeInFilename
   value: 'false'
 - name: VRayRenderElementsVFBControl
-  value: 'true'
+  value: 'false'
 - name: VRaySplitBufferSupport
   value: 'true'
 - name: IgnoreRenderElementsByName

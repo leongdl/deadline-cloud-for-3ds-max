@@ -6,5 +6,5 @@ assetReferences:
     - lightmix/scene/scene.max
   outputs:
     directories:
-    - lightmix/expected_images/
+    - lightmix/output_images/
   referencedPaths: []
