@@ -815,6 +815,12 @@ def configure_vray_render_elements(
                                     f"Failed to set split buffer filename for '{element.name}': {e}"
                                 )
 
+                    #try:
+                    #    re_manager.SetElementsActive(True)
+                    #    _logger.info("Render element manager: SetElementsActive(True)")
+                    #except Exception as e:
+                    #    _logger.warning(f"Could not call SetElementsActive: {e}")
+
                     _logger.info(
                         f"V-Ray split buffer: Set unique filename for {filename_set_count} render elements"
                     )
@@ -831,6 +837,7 @@ def configure_vray_render_elements(
                 warnings.append(f"Failed to configure V-Ray split buffer filenames: {e}")
 
         # Configure per-element settings
+        # Configure per-element settings
         enabled_count = 0
         disabled_count = 0
 
@@ -842,10 +849,9 @@ def configure_vray_render_elements(
             element_name: str = element.name
             should_ignore = element_name in ignore_list
 
-            # Skip V-Ray VFB specific elements (matching Deadline 10 pattern)
+            # Skip Missing_Render_Element_Plug_in
             element_type = str(rt.classof(element_obj))
-            if element_type in ["VRayOptionRE", "VRayAlpha"]:
-                _logger.debug(f"Skipping V-Ray VFB element: {element_name} ({element_type})")
+            if element_type == "Missing_Render_Element_Plug_in":
                 continue
 
             # Automatically enable/disable render elements based on VFB control and ignore list
@@ -853,13 +859,11 @@ def configure_vray_render_elements(
                 try:
                     if should_ignore:
                         element_obj.enabled = False
-                        # Also update our wrapper to keep it in sync
                         element.enabled = False
                         disabled_count += 1
                         _logger.info(f"Disabled render element (ignored): {element_name}")
                     else:
                         element_obj.enabled = True
-                        # Also update our wrapper to keep it in sync
                         element.enabled = True
                         enabled_count += 1
                         _logger.debug(f"Enabled render element: {element_name}")
@@ -869,13 +873,12 @@ def configure_vray_render_elements(
             # Configure V-Ray VFB control per element
             if hasattr(element_obj, "vrayVFB"):
                 try:
-                    # Disable VFB for render elements when VFB control is enabled
+                    # Set vrayVFB based on vfb_control setting
                     element_obj.vrayVFB = not vfb_control
                     _logger.debug(f"Set V-Ray VFB for '{element_name}': {not vfb_control}")
                 except Exception as e:
                     warnings.append(f"Failed to configure V-Ray VFB for '{element_name}': {e}")
 
-        # Log summary of enabled/disabled elements
         if vfb_control:
             _logger.info(
                 f"V-Ray VFB Control: Enabled {enabled_count} render elements, disabled {disabled_count}"
