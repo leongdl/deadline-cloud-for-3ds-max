@@ -766,14 +766,11 @@ def configure_vray_render_elements(
                 # Set output_splitbitmap to enable render elements to inherit the output path
                 # This is required for V-Ray render elements (like LightMix) to save correctly
                 # The bitmap needs to be created with the split filename
-                try:
-                    if output_path and output_name:
-                        # Create a bitmap for the split output
-                        split_bitmap = rt.bitmap(1, 1, filename=base_filepath)
-                        rt.renderers.current.output_splitbitmap = split_bitmap
-                        _logger.info(f"V-Ray output_splitbitmap set to: {base_filepath}")
-                except Exception as bitmap_e:
-                    _logger.warning(f"Could not set output_splitbitmap: {bitmap_e}")
+                if output_path and output_name:
+                    # Create a bitmap for the split output
+                    split_bitmap = rt.bitmap(1, 1, filename=base_filepath)
+                    _set_vray_property("output_splitbitmap", split_bitmap, warnings)
+                    _logger.info(f"V-Ray output_splitbitmap set to: {base_filepath}")
 
                 _logger.info("V-Ray split buffer configured")
             except Exception as e:
