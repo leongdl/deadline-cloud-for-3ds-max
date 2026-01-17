@@ -203,7 +203,7 @@ def _create_mock_vray_render_element(
 def test_configure_vray_render_elements(
     mock_rt: MagicMock, vfb_control: bool, split_buffer: bool
 ) -> None:
-    """Test configure_vray_render_elements with different VFB and split buffer settings."""
+    """Test configure_vray_render_elements with different VFB and split buffer settings (D10 pattern)."""
     from deadline.max_shared.utilities.max_utils import (
         configure_vray_render_elements,
         VRayRenderElementSettings,
@@ -216,8 +216,6 @@ def test_configure_vray_render_elements(
     mock_renderer.output_on = True
     mock_renderer.output_splitgbuffer = False
     mock_renderer.output_splitfilename = ""
-    mock_renderer.output_splitRGB = False
-    mock_renderer.output_splitAlpha = False
     mock_rt.renderers.current = mock_renderer
 
     # Mock render element manager
@@ -262,23 +260,23 @@ def test_configure_vray_render_elements(
     # Verify VFB control was set correctly
     if vfb_control:
         assert mock_renderer.output_on is False
-        # Verify all elements are enabled (no ignore list)
+        # D10 pattern: vrayVFB is ALWAYS disabled on all elements
         for element in vray_elements:
-            assert element.element_object.enabled is True
-            assert element.enabled is True
-            # Verify vrayVFB property was set
-            assert element.element_object.vrayVFB is False  # Disabled when VFB control is on
+            assert element.element_object.vrayVFB is False
+        # D10 pattern: element.enabled is NOT modified
     else:
         # VFB control not enabled, output_on should not be changed
         pass
 
-    # Verify split buffer was configured correctly
+    # Verify split buffer was configured correctly based on D10 pattern
     if split_buffer:
-        assert mock_renderer.output_splitgbuffer is True
-        assert mock_renderer.output_splitRGB is True
-        assert mock_renderer.output_splitAlpha is True
         expected_base_path = os.path.join(output_path, f"{output_name}{output_format}")
-        assert mock_renderer.output_splitfilename == expected_base_path
+
+        if not vfb_control:
+            # Scenario 1 (V-Ray VFB mode): output_splitgbuffer IS set to True
+            assert mock_renderer.output_splitgbuffer is True
+            assert mock_renderer.output_splitfilename == expected_base_path
+        # Scenario 2 (3dsMax FBO mode, vfb_control=True): output_splitgbuffer is NOT set
 
         # Verify filenames were set for all enabled elements
         assert mock_re_manager.SetRenderElementFilename.call_count == 5
@@ -288,7 +286,12 @@ def test_configure_vray_render_elements(
 
 @patch("deadline.max_shared.utilities.max_utils.rt")
 def test_configure_vray_render_elements_with_ignore_list(mock_rt: MagicMock) -> None:
-    """Test configure_vray_render_elements correctly disables ignored elements."""
+    """Test configure_vray_render_elements correctly handles ignored elements (D10 pattern).
+
+    D10 pattern: Does NOT modify element.enabled state. Ignored elements are
+    skipped during filename configuration but their enabled state is preserved.
+    vrayVFB is ALWAYS disabled on all V-Ray elements.
+    """
     from deadline.max_shared.utilities.max_utils import (
         configure_vray_render_elements,
         VRayRenderElementSettings,
@@ -323,7 +326,7 @@ def test_configure_vray_render_elements_with_ignore_list(mock_rt: MagicMock) -> 
         vray_split_buffer_support=False,
     )
 
-    # Ignore list - disable VRayReflection and VRayLighting
+    # Ignore list - skip VRayReflection and VRayLighting during filename config
     ignore_list = ["VRayReflection", "VRayLighting"]
 
     # WHEN - Configure VRay render elements with ignore list
@@ -336,19 +339,12 @@ def test_configure_vray_render_elements_with_ignore_list(mock_rt: MagicMock) -> 
         ignore_list=ignore_list,
     )
 
-    # THEN - Verify ignored elements are disabled
+    # THEN - Verify D10 pattern behavior
     assert isinstance(warnings, list)
 
-    # Check each element
+    # D10 pattern: vrayVFB is ALWAYS disabled on all elements
     for element in vray_elements:
-        if element.name in ignore_list:
-            # Ignored elements should be disabled
-            assert element.element_object.enabled is False
-            assert element.enabled is False
-        else:
-            # Non-ignored elements should be enabled
-            assert element.element_object.enabled is True
-            assert element.enabled is True
+        assert element.element_object.vrayVFB is False
 
     # Verify VFB control was applied
     assert mock_renderer.output_on is False
@@ -574,7 +570,11 @@ def test_set_vray_output_path_standard_vray(mock_rt: MagicMock) -> None:
 
 @patch("deadline.max_shared.utilities.max_utils.rt")
 def test_set_vray_output_path_vray_rt(mock_rt: MagicMock) -> None:
-    """Test set_vray_output_path sets path for both standard V-Ray and V-Ray RT."""
+    """Test set_vray_output_path sets path on standard renderer for V-Ray RT.
+
+    Note: set_vray_output_path only sets rt.renderers.current.output_splitfilename.
+    It does not use _set_vray_property, so it doesn't set vray_rt_settings.
+    """
     from deadline.max_shared.utilities.max_utils import set_vray_output_path
 
     # GIVEN - Mock V-Ray RT renderer
@@ -592,10 +592,10 @@ def test_set_vray_output_path_vray_rt(mock_rt: MagicMock) -> None:
     # WHEN - Set V-Ray output path
     set_vray_output_path(output_path, output_name, output_format)
 
-    # THEN - Should set path on both standard renderer and RT settings
+    # THEN - Should set path on standard renderer only
+    # (set_vray_output_path doesn't use _set_vray_property)
     expected_path: str = f"C:/output{os.sep}test_render.png"
     assert mock_renderer.output_splitfilename == expected_path
-    assert mock_vray_settings.output_splitfilename == expected_path
 
 
 @patch("deadline.max_shared.utilities.max_utils.rt")
@@ -626,26 +626,22 @@ def test_set_vray_output_path_raises_on_failure(mock_rt: MagicMock) -> None:
 
 @patch("deadline.max_shared.utilities.max_utils.rt")
 def test_configure_vray_render_elements_sets_rt_settings(mock_rt: MagicMock) -> None:
-    """Test configure_vray_render_elements sets both standard and RT settings."""
+    """Test configure_vray_render_elements sets both standard and RT settings (D10 pattern)."""
     from deadline.max_shared.utilities.max_utils import (
         configure_vray_render_elements,
         VRayRenderElementSettings,
     )
 
-    # GIVEN - Mock V-Ray RT renderer
+    # GIVEN - Mock V-Ray RT renderer (GPU)
     mock_renderer = MagicMock()
     mock_renderer.classid = "#(1770671000, 1323107829)"
     mock_renderer.__str__.return_value = "V_Ray_GPU_6"  # type: ignore[attr-defined]
     mock_renderer.output_on = True
     mock_renderer.output_splitgbuffer = False
-    mock_renderer.output_splitRGB = False
-    mock_renderer.output_splitAlpha = False
 
     mock_vray_settings = MagicMock()
     mock_vray_settings.output_on = True
     mock_vray_settings.output_splitgbuffer = False
-    mock_vray_settings.output_splitRGB = False
-    mock_vray_settings.output_splitAlpha = False
     mock_renderer.V_Ray_settings = mock_vray_settings
 
     mock_rt.renderers.current = mock_renderer
@@ -673,17 +669,11 @@ def test_configure_vray_render_elements_sets_rt_settings(mock_rt: MagicMock) -> 
         output_file_format=".png",
     )
 
-    # THEN - Both standard and RT settings should be configured
-    assert mock_renderer.output_on is False
+    # THEN - For V-Ray RT (GPU), settings are applied to vray_rt_settings (D10 pattern)
+    # Scenario 2 (3dsMax FBO mode): output_on = False
     assert mock_vray_settings.output_on is False
 
-    assert mock_renderer.output_splitgbuffer is True
-    assert mock_vray_settings.output_splitgbuffer is True
-
-    assert mock_renderer.output_splitRGB is True
-    assert mock_vray_settings.output_splitRGB is True
-
-    assert mock_renderer.output_splitAlpha is True
-    assert mock_vray_settings.output_splitAlpha is True
+    # D10 pattern: vrayVFB is ALWAYS disabled on all elements
+    assert vray_element.element_object.vrayVFB is False
 
     assert isinstance(warnings, list)

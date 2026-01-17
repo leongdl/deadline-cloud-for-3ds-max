@@ -493,16 +493,28 @@ def _configure_split_buffer_settings(
     This helper function sets up the split buffer flags and filename that are
     common to both V-Ray VFB and 3dsMax framebuffer modes.
 
+    D10 Pattern:
+    - output_splitgbuffer = True (enable split buffer)
+    - output_splitRGB = True (save RGB channels)
+    - output_splitAlpha = True (save Alpha channel)
+    - output_splitfilename = path (base filename for split files)
+    
+    NOTE: output_saveRawFile is for saving raw .vrimg files, NOT for split buffer.
+
     :param output_path: output directory path for split buffer files
     :param output_name: base output filename for split buffer files
     :param output_file_format: output file format/extension
     :param warnings: list to append warning messages to
     :returns: the base filepath if successfully configured, None otherwise
     """
-    # Enable split buffer flags
+    # D10: Enable split buffer flag only
     _set_vray_property("output_splitgbuffer", True, warnings)
+
+    # Enable split RGB to save render elements to separate files
+    # This is required for V-Ray to actually output the render element files
     _set_vray_property("output_splitRGB", True, warnings)
     _set_vray_property("output_splitAlpha", True, warnings)
+    # NOTE: output_saveRawFile is for saving raw .vrimg files, NOT for split buffer output
 
     base_filepath: Optional[str] = None
 
@@ -516,12 +528,12 @@ def _configure_split_buffer_settings(
         base_filepath = os.path.join(output_path, f"{base_name}{extension}")
 
         _logger.debug(
-            f"[_configure_split_buffer_settings:line548] Setting output_splitfilename "
+            f"[_configure_split_buffer_settings] Setting output_splitfilename "
             f"via _set_vray_property"
         )
         _set_vray_property("output_splitfilename", base_filepath, warnings)
         _logger.info(
-            f"[_configure_split_buffer_settings:line548] V-Ray split buffer filename set to: "
+            f"[_configure_split_buffer_settings] V-Ray split buffer filename set to: "
             f"{base_filepath}"
         )
     else:
@@ -544,51 +556,64 @@ def _configure_render_element_filenames(
     warnings: list[str],
 ) -> None:
     """
-    Configure split buffer filenames for all render elements.
+    Configure filenames for render elements (D10 pattern).
 
-    Sets the same base filename for all render elements (except ignored ones).
-    V-Ray will automatically append layer names during rendering.
-    Also enables render element output via SetElementsActive(True).
+    Sets a UNIQUE output filename for each render element by appending the
+    element name to the base filename. Does NOT modify the element's enabled state.
 
-    Note: This sets filenames regardless of the element's current enabled state,
-    because V-Ray VFB mode will output elements based on vrayVFB property, not
-    the enabled property.
+    D10 Pattern:
+    - Skip ignored elements (by name)
+    - Skip disabled elements (read but don't modify enabled state)
+    - Use SetRenderElementFilename() to set paths with unique names per element
+    - Use SetElementsActive(True) to enable RE output
+    - Does NOT use SetOutputEnabled()
 
     :param render_elements: list of RenderElementInfo objects
-    :param base_filepath: base filepath for split buffer output
+    :param base_filepath: base filepath for output (e.g., "C:/output/render.png")
     :param ignore_list: list of render element names to ignore
     :param warnings: list to append warning messages to
     """
     if not base_filepath:
-        warnings.append("V-Ray split buffer filename setup skipped: Missing output path or name")
+        warnings.append("Render element filename setup skipped: Missing output path or name")
         return
 
     try:
         re_manager = rt.maxOps.GetCurRenderElementMgr()
         if not re_manager:
-            warnings.append("V-Ray split buffer filename setup failed: No render element manager")
+            warnings.append("Render element filename setup failed: No render element manager")
             return
+
+        # Parse base filepath into components for building unique filenames
+        base_dir = os.path.dirname(base_filepath)
+        base_name_with_ext = os.path.basename(base_filepath)
+        base_name, extension = os.path.splitext(base_name_with_ext)
 
         filename_set_count = 0
         for element in render_elements:
-            # Set filename for all elements except ignored ones
-            # Don't check element.enabled - V-Ray VFB outputs based on vrayVFB property
-            if element.name not in ignore_list:
-                try:
-                    re_manager.SetRenderElementFilename(element.index, base_filepath)
-                    # Update in-memory element info for later validation
-                    element.output_filename = base_filepath.replace("\\", "/")
-                    element.has_output_path = True
-                    filename_set_count += 1
-                    _logger.debug(
-                        f"Set V-Ray split buffer base filename for '{element.name}': {base_filepath}"
-                    )
-                except Exception as e:
-                    warnings.append(
-                        f"Failed to set split buffer filename for '{element.name}': {e}"
-                    )
+            # D10 pattern: Skip ignored elements (by name)
+            if element.name in ignore_list:
+                _logger.debug(f"Skipping ignored render element: {element.name}")
+                continue
 
-        # Enable render element output (equivalent to MAXScript: re.SetElementsActive true)
+            # D10 does NOT skip disabled elements - it sets filenames for ALL elements
+            # Users may enable elements later, and V-Ray VFB needs all paths configured
+
+            try:
+                # Create unique filename per element: basename_elementname.ext
+                purified_name = purify_render_element_name(element.name)
+                unique_filename = f"{base_name}_{purified_name}{extension}"
+                unique_filepath = os.path.join(base_dir, unique_filename)
+
+                re_manager.SetRenderElementFilename(element.index, unique_filepath)
+                # Update in-memory element info for later validation
+                element.output_filename = unique_filepath.replace("\\", "/")
+                element.has_output_path = True
+                filename_set_count += 1
+                _logger.debug(f"Set filename for '{element.name}': {unique_filepath}")
+            except Exception as e:
+                warnings.append(f"Failed to set filename for '{element.name}': {e}")
+
+        # D10: Enable render element output via SetElementsActive(True)
         # This is CRITICAL - without this, render elements won't be saved to files
         try:
             re_manager.SetElementsActive(True)
@@ -596,37 +621,33 @@ def _configure_render_element_filenames(
         except Exception as e:
             _logger.warning(f"Could not call SetElementsActive: {e}")
 
-        _logger.info(
-            f"V-Ray split buffer: Set base filename for {filename_set_count} render elements"
-        )
+        _logger.info(f"Set filenames for {filename_set_count} render elements")
     except Exception as e:
-        warnings.append(f"Failed to configure V-Ray split buffer filenames: {e}")
+        warnings.append(f"Failed to configure render element filenames: {e}")
 
 
 def _configure_render_element_states(
     render_elements: list[RenderElementInfo],
     ignore_list: list[str],
-    vray_vfb_enabled: bool,
-    element_enabled: bool,
     warnings: list[str],
 ) -> None:
     """
-    Configure render element enabled states and vrayVFB property.
+    Configure render element vrayVFB property (D10 pattern).
 
-    This shared function handles per-element configuration for both
-    V-Ray VFB and 3dsMax framebuffer modes:
-    - V-Ray VFB mode: enabled = false, vrayVFB = true
-    - 3dsMax FBO mode: enabled = true, vrayVFB = false
-    - Ignored elements: enabled = false (both modes)
+    D10 ALWAYS disables vrayVFB on all V-Ray render elements to force them
+    through the 3dsMax render element pipeline. It does NOT modify the
+    element's enabled state.
+
+    D10 Pattern:
+    - Skip Missing_Render_Element_Plug_in
+    - ALWAYS set vrayVFB = False on V-Ray elements
+    - Does NOT modify element.enabled state
 
     :param render_elements: list of RenderElementInfo objects
-    :param ignore_list: list of render element names to ignore (disable)
-    :param vray_vfb_enabled: whether V-Ray VFB is enabled for elements
-    :param element_enabled: whether to enable non-ignored elements
+    :param ignore_list: list of render element names to ignore (for logging only)
     :param warnings: list to append warning messages to
     """
-    enabled_count = 0
-    disabled_count = 0
+    disabled_vfb_count = 0
 
     for element in render_elements:
         element_obj = element.element_object
@@ -634,37 +655,88 @@ def _configure_render_element_states(
             continue
 
         element_name: str = element.name
-        should_ignore = element_name in ignore_list
 
-        # Skip V-Ray VFB specific elements (matching Deadline 10 pattern)
+        # D10 pattern: Skip Missing_Render_Element_Plug_in
         element_type = str(rt.classof(element_obj))
-        if element_type in ["VRayOptionRE", "VRayAlpha"]:
-            _logger.debug(f"Skipping V-Ray VFB element: {element_name} ({element_type})")
+        if element_type == "Missing_Render_Element_Plug_in":
+            continue
+
+        # D10: ALWAYS disable vrayVFB on V-Ray elements
+        # This forces render elements through 3dsMax pipeline
+        try:
+            if hasattr(element_obj, "vrayVFB"):
+                if element_obj.vrayVFB:
+                    element_obj.vrayVFB = False
+                    disabled_vfb_count += 1
+                    _logger.info(f"Disabled V-Ray VFB for render element: {element_name}")
+        except Exception as e:
+            warnings.append(f"Failed to disable vrayVFB for '{element_name}': {e}")
+
+    if disabled_vfb_count > 0:
+        _logger.info(f"Disabled V-Ray VFB on {disabled_vfb_count} render elements")
+
+
+def _enable_render_elements_for_vfb(
+    render_elements: list[RenderElementInfo],
+    ignore_list: list[str],
+    warnings: list[str],
+) -> None:
+    """
+    Enable render elements and set vrayVFB = True for V-Ray VFB split buffer mode.
+
+    For V-Ray VFB to output render elements via split buffer, each element must:
+    1. Be enabled (element.enabled = True)
+    2. Have vrayVFB = True so it outputs through the V-Ray VFB
+
+    :param render_elements: list of RenderElementInfo objects
+    :param ignore_list: list of render element names to ignore
+    :param warnings: list to append warning messages to
+    """
+    try:
+        re_manager = rt.maxOps.GetCurRenderElementMgr()
+        if not re_manager:
+            warnings.append("Cannot enable render elements: No render element manager")
+            return
+    except Exception as e:
+        warnings.append(f"Cannot enable render elements: {e}")
+        return
+
+    enabled_count = 0
+    vfb_enabled_count = 0
+
+    for element in render_elements:
+        # Skip ignored elements
+        if element.name in ignore_list:
             continue
 
         try:
-            if should_ignore:
-                element_obj.enabled = False
-                element.enabled = False
-                disabled_count += 1
-                _logger.info(f"Disabled render element (ignored): {element_name}")
-            else:
-                element_obj.enabled = element_enabled
-                element.enabled = element_enabled
-                if element_enabled:
+            element_obj = re_manager.GetRenderElement(element.index)
+            if not element_obj:
+                continue
+
+            element_name = element.name
+
+            # Enable the render element
+            if hasattr(element_obj, "enabled"):
+                if not element_obj.enabled:
+                    element_obj.enabled = True
                     enabled_count += 1
-                else:
-                    disabled_count += 1
-                _logger.debug(f"Set render element '{element_name}' enabled={element_enabled}")
+                    _logger.debug(f"Enabled render element: {element_name}")
 
-                # Configure V-Ray VFB property per element
-                if hasattr(element_obj, "vrayVFB"):
-                    element_obj.vrayVFB = vray_vfb_enabled
-                    _logger.debug(f"Set V-Ray VFB for '{element_name}': {vray_vfb_enabled}")
+            # Set vrayVFB = True so element outputs through V-Ray VFB
+            if hasattr(element_obj, "vrayVFB"):
+                if not element_obj.vrayVFB:
+                    element_obj.vrayVFB = True
+                    vfb_enabled_count += 1
+                    _logger.debug(f"Set vrayVFB=True for render element: {element_name}")
+
         except Exception as e:
-            warnings.append(f"Failed to configure element '{element_name}': {e}")
+            warnings.append(f"Failed to enable render element '{element.name}': {e}")
 
-    _logger.info(f"Render elements: Enabled {enabled_count}, disabled {disabled_count}")
+    if enabled_count > 0:
+        _logger.info(f"Enabled {enabled_count} render elements")
+    if vfb_enabled_count > 0:
+        _logger.info(f"Set vrayVFB=True on {vfb_enabled_count} render elements")
 
 
 def _configure_vray_vfb_split_buffer_mode(
@@ -676,12 +748,21 @@ def _configure_vray_vfb_split_buffer_mode(
     warnings: list[str],
 ) -> None:
     """
-    Configure V-Ray VFB with split buffer for both CPU and GPU.
+    Configure V-Ray VFB with split buffer mode (D10 pattern).
 
-    Scenario 1: VRayVFBControl=false, VRaySplitBufferSupport=true
-    - V-Ray VFB is ENABLED (output_on = true)
-    - V-Ray split buffer saves render elements with element name appended
-    - Per-element vrayVFB = true
+    V-Ray VFB handles ALL output - but D10 still sets render element filenames
+    via SetRenderElementFilename using output_splitfilename as the base path.
+
+    D10 Pattern:
+    - Set output_on = True (enable V-Ray VFB)
+    - Set output_useram = True (CRITICAL: required for split buffer to work)
+    - Set output_splitgbuffer = True (enable split buffer)
+    - Set output_splitRGB = True (save RGB to split files)
+    - Set output_splitAlpha = True (save Alpha to split files)
+    - Set output_splitfilename (split buffer path)
+    - Call SetRenderElementFilename for each element (D10 DOES set these)
+    - Call SetElementsActive(True) (enable render element output)
+    - Do NOT disable vrayVFB on elements - let V-Ray VFB handle them
 
     :param render_elements: list of RenderElementInfo objects
     :param output_path: output directory path for split buffer files
@@ -690,66 +771,48 @@ def _configure_vray_vfb_split_buffer_mode(
     :param ignore_list: list of render element names to ignore
     :param warnings: list to append warning messages to
     """
-    _logger.info("Configuring V-Ray VFB split buffer mode (Scenario 1)")
+    _logger.info("Configuring V-Ray VFB split buffer mode (D10 pattern)")
 
-    # Enable V-Ray VFB - set directly on renderer for V-Ray GPU compatibility
-    _logger.debug(
-        "[_configure_vray_vfb_split_buffer_mode] Setting output_on=True for main camera output"
-    )
+    # Enable V-Ray VFB
     _set_vray_property("output_on", True, warnings)
 
-    # Verify the setting was applied (for debugging V-Ray GPU issues)
-    try:
-        current_value = getattr(rt.renderers.current, "output_on", None)
-        _logger.debug(
-            f"[_configure_vray_vfb_split_buffer_mode] After setting, "
-            f"rt.renderers.current.output_on = {current_value}"
-        )
-        vray_rt_settings = _get_vray_rt_settings()
-        if vray_rt_settings:
-            rt_value = getattr(vray_rt_settings, "output_on", None)
-            _logger.debug(
-                f"[_configure_vray_vfb_split_buffer_mode] After setting, "
-                f"vray_rt_settings.output_on = {rt_value}"
-            )
-    except Exception as e:
-        _logger.debug(f"[_configure_vray_vfb_split_buffer_mode] Could not verify output_on: {e}")
+    # CRITICAL: Enable RAM frame buffer (required for split buffer to work)
+    _set_vray_property("output_useram", True, warnings)
 
-    # Also enable output_saveRawFile for V-Ray GPU main camera output
-    _logger.debug(
-        "[_configure_vray_vfb_split_buffer_mode] Setting output_saveRawFile=True for main beauty"
-    )
-    _set_vray_property("output_saveRawFile", True, warnings)
+    # Enable split buffer
+    _set_vray_property("output_splitgbuffer", True, warnings)
+    _set_vray_property("output_splitRGB", True, warnings)
+    _set_vray_property("output_splitAlpha", True, warnings)
 
-    # Set the raw file output path if we have output path info
+    # Set split buffer output path
+    base_filepath: Optional[str] = None
     if output_path and output_name:
         base_name, _ = os.path.splitext(output_name)
         extension = (
             output_file_format if output_file_format and output_file_format.startswith(".")
             else f".{output_file_format}" if output_file_format else ".png"
         )
-        raw_filepath = os.path.join(output_path, f"{base_name}{extension}")
-        _logger.debug(
-            f"[_configure_vray_vfb_split_buffer_mode] Setting output_rawFileName={raw_filepath}"
+        base_filepath = os.path.join(output_path, f"{base_name}{extension}")
+        _set_vray_property("output_splitfilename", base_filepath, warnings)
+        _logger.info(f"V-Ray split buffer filename: {base_filepath}")
+    else:
+        missing_params = []
+        if not output_path:
+            missing_params.append("output_file_path")
+        if not output_name:
+            missing_params.append("output_file_name (check template has this defined)")
+        warnings.append(
+            f"Split buffer enabled but missing: {', '.join(missing_params)} - split files may not save correctly"
         )
-        _set_vray_property("output_rawFileName", raw_filepath, warnings)
 
-    # Configure split buffer settings
-    base_filepath = _configure_split_buffer_settings(
-        output_path, output_name, output_file_format, warnings
-    )
-
-    # Set filenames for all render elements
+    # D10 Pattern: Set render element filenames even for VFB mode
+    # Uses output_splitfilename as the base path
     _configure_render_element_filenames(render_elements, base_filepath, ignore_list, warnings)
 
-    # Configure per-element settings - vrayVFB enabled, element disabled (V-Ray VFB handles output)
-    _configure_render_element_states(
-        render_elements,
-        ignore_list,
-        vray_vfb_enabled=True,
-        element_enabled=False,
-        warnings=warnings,
-    )
+    # Enable render elements and set vrayVFB = True so they output through V-Ray VFB
+    _enable_render_elements_for_vfb(render_elements, ignore_list, warnings)
+
+    _logger.info("V-Ray VFB split buffer mode configured")
 
 
 def _configure_3dsmax_fbo_split_buffer_mode(
@@ -761,13 +824,16 @@ def _configure_3dsmax_fbo_split_buffer_mode(
     warnings: list[str],
 ) -> None:
     """
-    Configure 3dsMax framebuffer with V-Ray split buffer.
+    Configure 3dsMax framebuffer mode (fool-proof).
 
-    Scenario 2: VRayVFBControl=true, VRaySplitBufferSupport=true
-    - V-Ray VFB is DISABLED (output_on = false)
-    - V-Ray split buffer is DISABLED (output_splitgbuffer = false)
-    - 3dsMax RE Manager handles the actual file saving
-    - Per-element vrayVFB = false
+    3dsMax handles render element output via standard render element manager.
+    V-Ray VFB is disabled.
+
+    Fool-proof Pattern:
+    - Set output_on = False (disable V-Ray VFB - use 3dsMax framebuffer)
+    - Set vrayVFB = False on each element (disable V-Ray VFB on each element)
+    - Call SetRenderElementFilename(i, path) (set unique path per element)
+    - Call SetElementsActive(True) (enable render element output)
 
     :param render_elements: list of RenderElementInfo objects
     :param output_path: output directory path for split buffer files
@@ -776,35 +842,28 @@ def _configure_3dsmax_fbo_split_buffer_mode(
     :param ignore_list: list of render element names to ignore
     :param warnings: list to append warning messages to
     """
-    _logger.info("Configuring 3dsMax framebuffer mode (Scenario 2)")
+    _logger.info("Configuring 3dsMax framebuffer mode (fool-proof)")
 
     # Disable V-Ray VFB - use 3dsMax framebuffer
     _set_vray_property("output_on", False, warnings)
-
-    # Disable V-Ray split buffer - 3dsMax RE Manager handles file saving
-    _set_vray_property("output_splitgbuffer", False, warnings)
 
     # Build base filepath for render element filenames
     base_filepath: Optional[str] = None
     if output_path and output_name:
         base_name, _ = os.path.splitext(output_name)
-        assert output_file_format is not None
         extension = (
-            output_file_format if output_file_format.startswith(".") else f".{output_file_format}"
+            output_file_format if output_file_format and output_file_format.startswith(".")
+            else f".{output_file_format}" if output_file_format else ".exr"
         )
         base_filepath = os.path.join(output_path, f"{base_name}{extension}")
 
-    # Set filenames for all render elements
+    # Set unique filenames for each render element via 3dsMax manager
     _configure_render_element_filenames(render_elements, base_filepath, ignore_list, warnings)
 
-    # Configure per-element settings - vrayVFB disabled, element enabled (3dsMax RE Manager handles output)
-    _configure_render_element_states(
-        render_elements,
-        ignore_list,
-        vray_vfb_enabled=False,
-        element_enabled=True,
-        warnings=warnings,
-    )
+    # Disable vrayVFB on all elements - force through 3dsMax pipeline
+    _configure_render_element_states(render_elements, ignore_list, warnings)
+
+    _logger.info("3dsMax framebuffer mode configured - 3dsMax handles all render element output")
 
 
 def configure_vray_render_elements(
@@ -884,14 +943,8 @@ def configure_vray_render_elements(
             # VFB control without split buffer - just disable VFB
             _logger.info("Disabling V-Ray VFB without split buffer")
             _set_vray_property("output_on", False, warnings)
-            # Still configure element states - vrayVFB disabled, element enabled
-            _configure_render_element_states(
-                render_elements,
-                ignore_list,
-                vray_vfb_enabled=False,
-                element_enabled=True,
-                warnings=warnings,
-            )
+            # D10: ALWAYS disable vrayVFB on elements (forces 3dsMax pipeline)
+            _configure_render_element_states(render_elements, ignore_list, warnings)
         else:
             # Scenario 3: Leave settings unchanged (scene defaults)
             _logger.info(
@@ -1057,7 +1110,8 @@ def _configure_render_element_outputs_filename(
 
         filename_set_count = 0
         for element in render_elements:
-            if not element.enabled or element.name in ignore_list:
+            # D10 does NOT skip disabled elements - only skip ignored elements
+            if element.name in ignore_list:
                 continue
 
             try:

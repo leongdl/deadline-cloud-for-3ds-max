@@ -112,11 +112,11 @@ class VrayHandler(DefaultMaxHandler):
         Always sets V-Ray output path for both standard V-Ray and V-Ray RT.
         """
         # Always set V-Ray output path
-        if self.output_dir and self.output_name:
-            set_vray_output_path(
-                output_path=self.output_dir,
-                output_name=self.output_name,
-                output_format=self.output_format or ".exr",
-            )
+        #if self.output_dir and self.output_name:
+        #    set_vray_output_path(
+        #        output_path=self.output_dir,
+        #        output_name=self.output_name,
+        #        output_format=self.output_format or ".exr",
+        #    )
 
         super().start_render(data)
