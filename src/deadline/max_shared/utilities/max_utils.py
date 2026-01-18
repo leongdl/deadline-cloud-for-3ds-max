@@ -520,8 +520,8 @@ def _configure_split_buffer_settings(
 
         # Explicitly unset output_splitbitmap to ensure clean state
         #_set_vray_property("output_splitbitmap", rt.undefined, warnings)
-        rt.renderers.current.output_splitbitmap = rt.undefined
-        rt.renderers.current.V_Ray_settings.output_splitbitmap = rt.undefined
+        #rt.renderers.current.output_splitbitmap = rt.undefined
+        #rt.renderers.current.V_Ray_settings.output_splitbitmap = rt.undefined
         _logger.info("[_configure_split_buffer_settings] V-Ray output_splitbitmap set to undefined")
     else:
         missing_params = []
