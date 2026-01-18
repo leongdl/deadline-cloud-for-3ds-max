@@ -157,10 +157,10 @@ def _set_vray_property(prop_name: str, value: Any, warnings: list[str]) -> None:
             # V-Ray GPU - set on vray_rt_settings only
             setattr(vray_rt_settings, prop_name, value)
             _logger.debug(f"[_set_vray_property] Set vray_rt_settings.{prop_name} = {value}")
-        else:
-            # V-Ray CPU - set on rt.renderers.current
-            setattr(rt.renderers.current, prop_name, value)
-            _logger.debug(f"[_set_vray_property] Set rt.renderers.current.{prop_name} = {value}")
+        #else:
+        # V-Ray CPU - set on rt.renderers.current
+        setattr(rt.renderers.current, prop_name, value)
+        _logger.debug(f"[_set_vray_property] Set rt.renderers.current.{prop_name} = {value}")
     except Exception as e:
         warning_msg = f"Failed to set V-Ray property {prop_name}: {e}"
         _logger.warning(f"[_set_vray_property] {warning_msg}")
@@ -518,10 +518,11 @@ def _configure_split_buffer_settings(
             f"{base_filepath}"
         )
 
-        # Create a bitmap for the split output
-        split_bitmap = rt.bitmap(1, 1, filename=base_filepath)
-        _set_vray_property("output_splitbitmap", split_bitmap, warnings)
-        _logger.info(f"[_configure_split_buffer_settings] V-Ray output_splitbitmap set to: {base_filepath}")
+        # Explicitly unset output_splitbitmap to ensure clean state
+        #_set_vray_property("output_splitbitmap", rt.undefined, warnings)
+        rt.renderers.current.output_splitbitmap = rt.undefined
+        rt.renderers.current.V_Ray_settings.output_splitbitmap = rt.undefined
+        _logger.info("[_configure_split_buffer_settings] V-Ray output_splitbitmap set to undefined")
     else:
         missing_params = []
         if not output_path:
@@ -704,11 +705,6 @@ def _dump_vray_settings_to_file(output_path: Optional[str], render_elements: lis
         lines.append(f"Is V-Ray RT (GPU): {_is_vray_rt()}")
         lines.append("")
 
-        # V-Ray VFB / Output Settings
-        lines.append("-" * 40)
-        lines.append("V-Ray VFB / Output Settings:")
-        lines.append("-" * 40)
-
         vray_settings = [
             "output_on",
             "output_splitgbuffer",
@@ -719,16 +715,30 @@ def _dump_vray_settings_to_file(output_path: Optional[str], render_elements: lis
             "output_saveRawFile",
         ]
 
-        # Get settings from appropriate object (GPU vs CPU)
-        vray_rt_settings = _get_vray_rt_settings()
-        settings_obj = vray_rt_settings if vray_rt_settings else renderer
-
+        # Dump renderer.current settings
+        lines.append("-" * 40)
+        lines.append("renderers.current Settings:")
+        lines.append("-" * 40)
         for setting in vray_settings:
             try:
-                value = getattr(settings_obj, setting)
+                value = getattr(renderer, setting)
                 lines.append(f"  {setting}: {value}")
             except Exception as e:
                 lines.append(f"  {setting}: <not available> ({e})")
+
+        # Dump vray_rt_settings (GPU) if available
+        vray_rt_settings = _get_vray_rt_settings()
+        if vray_rt_settings:
+            lines.append("")
+            lines.append("-" * 40)
+            lines.append("V-Ray RT Settings (vray_rt_settings):")
+            lines.append("-" * 40)
+            for setting in vray_settings:
+                try:
+                    value = getattr(vray_rt_settings, setting)
+                    lines.append(f"  {setting}: {value}")
+                except Exception as e:
+                    lines.append(f"  {setting}: <not available> ({e})")
 
         # Render Element Manager
         lines.append("")
