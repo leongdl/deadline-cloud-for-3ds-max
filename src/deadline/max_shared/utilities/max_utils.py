@@ -601,11 +601,11 @@ def _configure_render_element_filenames(
 
         # D10: Enable render element output via SetElementsActive(True)
         # This is CRITICAL - without this, render elements won't be saved to files
-        #try:
-        #    re_manager.SetElementsActive(True)
-        #    _logger.info("Render element manager: SetElementsActive(True)")
-        #except Exception as e:
-        #    _logger.warning(f"Could not call SetElementsActive: {e}")
+        try:
+            re_manager.SetElementsActive(True)
+            _logger.info("Render element manager: SetElementsActive(True)")
+        except Exception as e:
+            _logger.warning(f"Could not call SetElementsActive: {e}")
 
         _logger.info(f"Set filenames for {filename_set_count} render elements")
     except Exception as e:
@@ -676,6 +676,108 @@ def _configure_per_element_settings(
         )
 
 
+def _dump_vray_settings_to_file(output_path: Optional[str], render_elements: list[RenderElementInfo]) -> None:
+    """
+    Dump V-Ray renderer settings to a debug file for troubleshooting.
+
+    This function writes the current V-Ray renderer settings and render element
+    configuration to a text file at the output path for debugging purposes.
+
+    :param output_path: output directory path where debug file will be written
+    :param render_elements: list of RenderElementInfo objects
+    """
+    if not output_path:
+        _logger.debug("[_dump_vray_settings_to_file] No output path provided, skipping debug dump")
+        return
+
+    debug_filepath = os.path.join(output_path, "vray_settings_debug.txt")
+
+    try:
+        lines: list[str] = []
+        renderer = rt.renderers.current
+        renderer_name = str(renderer)
+
+        lines.append("=" * 60)
+        lines.append(f"V-Ray Settings Debug Dump")
+        lines.append("=" * 60)
+        lines.append(f"Current Renderer: {renderer_name}")
+        lines.append(f"Is V-Ray RT (GPU): {_is_vray_rt()}")
+        lines.append("")
+
+        # V-Ray VFB / Output Settings
+        lines.append("-" * 40)
+        lines.append("V-Ray VFB / Output Settings:")
+        lines.append("-" * 40)
+
+        vray_settings = [
+            "output_on",
+            "output_splitgbuffer",
+            "output_splitRGB",
+            "output_splitAlpha",
+            "output_splitfilename",
+            "output_splitbitmap",
+            "output_saveRawFile",
+        ]
+
+        # Get settings from appropriate object (GPU vs CPU)
+        vray_rt_settings = _get_vray_rt_settings()
+        settings_obj = vray_rt_settings if vray_rt_settings else renderer
+
+        for setting in vray_settings:
+            try:
+                value = getattr(settings_obj, setting)
+                lines.append(f"  {setting}: {value}")
+            except Exception as e:
+                lines.append(f"  {setting}: <not available> ({e})")
+
+        # Render Element Manager
+        lines.append("")
+        lines.append("-" * 40)
+        lines.append("Render Element Manager:")
+        lines.append("-" * 40)
+
+        re_manager = rt.maxOps.GetCurRenderElementMgr()
+        if re_manager:
+            num_elements = re_manager.NumRenderElements()
+            lines.append(f"  Number of render elements: {num_elements}")
+            try:
+                lines.append(f"  Elements active: {re_manager.GetElementsActive()}")
+            except Exception:
+                lines.append("  Elements active: <not available>")
+
+            lines.append("")
+            lines.append("  Render Elements:")
+            for element in render_elements:
+                element_obj = element.element_object
+                vray_vfb = "N/A"
+                if element_obj and hasattr(element_obj, "vrayVFB"):
+                    try:
+                        vray_vfb = element_obj.vrayVFB
+                    except Exception:
+                        pass
+
+                lines.append(f"    [{element.index}] {element.name}")
+                lines.append(f"        type: {element.type}")
+                lines.append(f"        enabled: {element.enabled}, vrayVFB: {vray_vfb}")
+                lines.append(f"        output: {element.output_filename}")
+        else:
+            lines.append("  No render element manager found")
+
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("End of Debug Dump")
+        lines.append("=" * 60)
+
+        # Write to file
+        with open(debug_filepath, "w") as f:
+            f.write("\n".join(lines))
+
+        _logger.info(f"[_dump_vray_settings_to_file] Debug dump written to: {debug_filepath}")
+
+    except Exception as e:
+        _logger.warning(f"[_dump_vray_settings_to_file] Failed to write debug dump: {e}")
+
+
 def configure_vray_render_elements(
     render_elements: list[RenderElementInfo],
     settings: VRayRenderElementSettings,
@@ -736,12 +838,16 @@ def configure_vray_render_elements(
             base_filepath = _configure_split_buffer_settings(
                 output_path, output_name, output_file_format, warnings
             )
+        elif output_path and output_name:
+            # Build base_filepath without configuring split buffer
+            base_name, _ = os.path.splitext(output_name)
+            extension = output_file_format if output_file_format.startswith(".") else f".{output_file_format}"
+            base_filepath = os.path.join(output_path, f"{base_name}{extension}")
 
         # Configure render element filenames
-        if split_buffer:
-            _configure_render_element_filenames(
-                render_elements, base_filepath, ignore_list, warnings
-            )
+        _configure_render_element_filenames(
+            render_elements, base_filepath, ignore_list, warnings
+        )
 
         # Configure per-element settings
         _configure_per_element_settings(
@@ -751,6 +857,9 @@ def configure_vray_render_elements(
     except Exception as e:
         _logger.error(f"Error configuring V-Ray render elements: {e}")
         warnings.append(f"V-Ray configuration failed: {e}")
+
+    # Dump V-Ray settings to debug file at output path
+    _dump_vray_settings_to_file(output_path, render_elements)
 
     return warnings
 
