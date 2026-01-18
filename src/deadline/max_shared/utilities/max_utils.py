@@ -517,6 +517,11 @@ def _configure_split_buffer_settings(
             f"[_configure_split_buffer_settings] V-Ray split buffer filename set to: "
             f"{base_filepath}"
         )
+
+        # Create a bitmap for the split output
+        split_bitmap = rt.bitmap(1, 1, filename=base_filepath)
+        _set_vray_property("output_splitbitmap", split_bitmap, warnings)
+        _logger.info(f"[_configure_split_buffer_settings] V-Ray output_splitbitmap set to: {base_filepath}")
     else:
         missing_params = []
         if not output_path:
