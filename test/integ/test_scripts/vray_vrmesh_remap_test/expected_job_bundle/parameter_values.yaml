@@ -1,10 +1,10 @@
 parameterValues:
 - name: MaxSceneFile
-  value: C:/Users/RDP/deadline-cloud-for-3ds-max/test/integ/test_scripts/re_disabled_test/scene/fog.max
+  value: C:/Users/RDP/deadline-cloud-for-3ds-max/test/integ/test_scripts/vray_vrmesh_remap_test/scene/fog.max
 - name: Frames
   value: '0'
 - name: OutputFilePath
-  value: C:/Users/RDP/deadline-cloud-for-3ds-max/test/integ/test_scripts/re_disabled_test/output_images/
+  value: C:/Users/RDP/deadline-cloud-for-3ds-max/test/integ/test_scripts/vray_vrmesh_remap_test/output/
 - name: OutputFileFormat
   value: .jpg
 - name: ImageWidth
@@ -14,7 +14,7 @@ parameterValues:
 - name: RenderElementsModified
   value: 'true'
 - name: RenderElements
-  value: 'false'
+  value: 'true'
 - name: RenderElementsUpdatePaths
   value: 'true'
 - name: RenderElementsIncludeNameInPath
@@ -26,7 +26,7 @@ parameterValues:
 - name: RenderElementsIncludeTypeInFilename
   value: 'false'
 - name: VRayRenderElementsVFBControl
-  value: 'true'
+  value: 'false'
 - name: VRaySplitBufferSupport
   value: 'true'
 - name: IgnoreRenderElementsByName
